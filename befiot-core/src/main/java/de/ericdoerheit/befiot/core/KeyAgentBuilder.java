@@ -12,7 +12,7 @@ import java.util.List;
  * Created by ericdorheit on 02/02/16.
  */
 public class KeyAgentBuilder {
-    private Logger log = LoggerFactory.getLogger(KeyAgentBuilder.class);
+    private static final Logger log = LoggerFactory.getLogger(KeyAgentBuilder.class);
 
     private Pairing pairing;
 

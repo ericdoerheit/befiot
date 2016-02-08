@@ -1,11 +1,12 @@
 package de.ericdoerheit.befiot.core;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.ericdoerheit.befiot.core.data.DecryptionKeyAgentData;
-import de.ericdoerheit.befiot.core.data.EncryptionKeyAgentData;
-import de.ericdoerheit.befiot.core.data.KeyAgentBuilderData;
+import de.ericdoerheit.befiot.core.data.*;
 import it.unisa.dia.gas.jpbc.Element;
 import it.unisa.dia.gas.jpbc.Pairing;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.List;
  * Created by ericdorheit on 04/02/16.
  */
 public class Deserializer {
+    private static final Logger log = LoggerFactory.getLogger(Deserializer.class);
 
     // TODO: 04/02/16 Use / Implement Pairing Identifier
 
@@ -84,6 +86,59 @@ public class Deserializer {
         try {
             KeyAgentBuilderData keyAgentBuilderData = mapper.readValue(jsonString, KeyAgentBuilderData.class);
             return keyAgentBuilderFromKeyAgentBuilderData(keyAgentBuilderData);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Tenant Data --- */
+    public static TenantData jsonStringToTenantData(String jsonString) {
+        try {
+            return mapper.readValue(jsonString, TenantData.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Thing Data --- */
+    public static ThingData jsonStringToThingData(String jsonString) {
+        try {
+            return mapper.readValue(jsonString, ThingData.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Registry Data --- */
+    public static RegistryData jsonStringToRegistryData(String jsonString) {
+        try {
+            return mapper.readValue(jsonString, RegistryData.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Encryption Header --- */
+    public static EncryptionHeader encryptionHeaderFromEncryptionHeaderData(EncryptionHeaderData encryptionHeaderData) {
+        Pairing pairing = Util.getDefaultPairing();
+        Element c0Elem = pairing.getGT().newElementFromBytes(encryptionHeaderData.getC0());
+        Element c1Elem = pairing.getGT().newElementFromBytes(encryptionHeaderData.getC1());
+
+        EncryptionHeader encryptionHeader = new EncryptionHeader();
+        encryptionHeader.setC0Elem(c0Elem);
+        encryptionHeader.setC1Elem(c1Elem);
+
+        return encryptionHeader;
+    }
+
+    public static EncryptionHeader jsonStringToEncryptionHeader(String jsonString) {
+        try {
+            EncryptionHeaderData encryptionHeaderData = mapper.readValue(jsonString, EncryptionHeaderData.class);
+            return encryptionHeaderFromEncryptionHeaderData(encryptionHeaderData);
         } catch (IOException e) {
             e.printStackTrace();
         }

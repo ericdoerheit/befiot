@@ -1,17 +1,20 @@
 package de.ericdoerheit.befiot.core;
 
+import de.ericdoerheit.befiot.core.data.TenantData;
+import it.unisa.dia.gas.jpbc.Element;
 import it.unisa.dia.gas.jpbc.Pairing;
 import it.unisa.dia.gas.plaf.jpbc.pairing.PairingFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.List;
 
 /**
  * Created by ericdorheit on 02/02/16.
  */
 public class Util {
-    private Logger log = LoggerFactory.getLogger(Util.class);
+    private static final Logger log = LoggerFactory.getLogger(Util.class);
 
     final public static String CRYPTOGRAPHY_PROPERTIES_PATH = "/curves/a.properties";
 
@@ -38,15 +41,23 @@ public class Util {
         return pairing;
     }
 
-    public static String smallByteHash(byte[] bytes) {
-        if(bytes == null)
-            return "null";
+    public static int numberOfBytesOfListOfElements(List<Element> elements) {
+        int size = 0;
 
-        String result = "";
+        for (Element element : elements) {
+            size += element.getLengthInBytes();
+        }
 
-        for(int i = 0; i < 3 && i < bytes.length; i++)
-            result += Byte.toString(bytes[i]);
+        return size;
+    }
 
-        return result;
+    public static String tenantId(String tenantHostname, Integer tenantPort) {
+        return tenantHostname+":"+String.valueOf(tenantPort);
+    }
+
+    public static String tenantId(TenantData tenantData) {
+        if(tenantData != null)
+            return tenantId(tenantData.getHostname(), tenantData.getPort());
+        return null;
     }
 }

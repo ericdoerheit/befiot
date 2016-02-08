@@ -13,7 +13,7 @@ import java.util.List;
  * Created by ericdorheit on 02/02/16.
  */
 public class EncryptionKeyAgent {
-    private Logger log = LoggerFactory.getLogger(EncryptionKeyAgent.class);
+    private static final Logger log = LoggerFactory.getLogger(EncryptionKeyAgent.class);
 
     private Pairing pairing;
     private List<Element> publicKey;
@@ -45,12 +45,12 @@ public class EncryptionKeyAgent {
      * This method returns the current meta data object.
      * @return
      */
-    public List<Element> getHeader() {
-        ArrayList<Element> header = new ArrayList<Element>(2);
-        header.add(c0Elem);
-        header.add(c1Elem);
+    public EncryptionHeader getHeader() {
+        EncryptionHeader encryptionHeader = new EncryptionHeader();
+        encryptionHeader.setC0Elem(c0Elem);
+        encryptionHeader.setC1Elem(c1Elem);
 
-        return header;
+        return encryptionHeader;
     }
 
     /**
@@ -59,6 +59,14 @@ public class EncryptionKeyAgent {
      */
     public Element getKey() {
         return keyElem;
+    }
+
+    /**
+     * This method returns the current session as byte array.
+     * @return
+     */
+    public byte[] getKeyBytes() {
+        return keyElem.toBytes();
     }
 
     /**

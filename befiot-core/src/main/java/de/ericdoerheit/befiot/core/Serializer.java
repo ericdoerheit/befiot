@@ -2,9 +2,7 @@ package de.ericdoerheit.befiot.core;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.ericdoerheit.befiot.core.data.DecryptionKeyAgentData;
-import de.ericdoerheit.befiot.core.data.EncryptionKeyAgentData;
-import de.ericdoerheit.befiot.core.data.KeyAgentBuilderData;
+import de.ericdoerheit.befiot.core.data.*;
 import it.unisa.dia.gas.jpbc.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +15,7 @@ import java.util.List;
  * Created by ericdorheit on 02/02/16.
  */
 public class Serializer {
-    private Logger log = LoggerFactory.getLogger(Serializer.class);
+    private static final Logger log = LoggerFactory.getLogger(Serializer.class);
 
     // TODO: 04/02/16 Pairing Identifier
 
@@ -83,6 +81,51 @@ public class Serializer {
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
+        return null;
+    }
+
+    /* --- Tenant Data --- */
+    public static String tenantDataToJsonString(TenantData tenantData) {
+        try {
+            return mapper.writeValueAsString(tenantData);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Thing Data --- */
+    public static String thingDataToJsonString(ThingData thingData) {
+        try {
+            return mapper.writeValueAsString(thingData);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Registy Data --- */
+    public static String registryDataToJsonString(RegistryData registryData) {
+        try {
+            return mapper.writeValueAsString(registryData);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /* --- Encryption Header --- */
+    public static String encryptionHeaderToJsonString(EncryptionHeader encryptionHeader) {
+        EncryptionHeaderData encryptionHeaderData = new EncryptionHeaderData();
+        encryptionHeaderData.setC0(encryptionHeader.getC0Elem().toBytes());
+        encryptionHeaderData.setC1(encryptionHeader.getC1Elem().toBytes());
+
+        try {
+            return mapper.writeValueAsString(encryptionHeaderData);
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage());
+        }
+
         return null;
     }
 }

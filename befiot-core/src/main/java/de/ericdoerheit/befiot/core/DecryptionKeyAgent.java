@@ -12,12 +12,13 @@ import java.util.List;
  * Created by ericdorheit on 02/02/16.
  */
 public class DecryptionKeyAgent {
-    private Logger log = LoggerFactory.getLogger(DecryptionKeyAgent.class);
+    private static final Logger log = LoggerFactory.getLogger(DecryptionKeyAgent.class);
 
     private Pairing pairing;
     private int id;
     private Element privateKey;
     private List<Element> publicKey;
+    private Element currentKey;
 
     /**
      * Initialize the Decryption Key Agent with given parameters.
@@ -37,9 +38,9 @@ public class DecryptionKeyAgent {
      * in the Decryption Key Agent. The header contains C0, C1 and the description of the set of authorized users.
      * @return
      */
-    public Element getKey(List<Element> header, int[] ids) {
-        Element c0Elem = header.get(0);
-        Element c1Elem = header.get(1);
+    public Element getKey(EncryptionHeader header, int[] ids) {
+        Element c0Elem = header.getC0Elem();
+        Element c1Elem = header.getC1Elem();
         Element gIElem = publicKey.get(id);
 
         Element e1Elem = pairing.pairing(gIElem, c1Elem);
@@ -64,7 +65,12 @@ public class DecryptionKeyAgent {
         Element e2Elem = pairing.pairing(productElem, c0Elem);
 
         log.debug("Decrypt key which is available for {} users. This Decryption Key Agent has id {}.", n, id);
-        return e1Elem.div(e2Elem);
+        currentKey = e1Elem.div(e2Elem);
+        return currentKey;
+    }
+
+    public byte[] getKeyBytes(EncryptionHeader header, int[] ids) {
+        return getKey(header, ids).toBytes();
     }
 
     public int getId() {
