@@ -15,6 +15,7 @@ import java.util.List;
 public class RegistryUtil {
     private final static Logger log = LoggerFactory.getLogger(RegistryUtil.class);
 
+    public static final String REGISTRY_KEY_PREFIX = "registry:";
     public static final String TENANT_LIST_KEY = "tenants";
     public static final String TENANT_THING_ID_RANGE_OFFSET_KEY = "tenant-thing-id-range-offset";
     public static final String TENANT_KEY_PREFIX = "tenant:";

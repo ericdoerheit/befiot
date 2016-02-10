@@ -74,13 +74,12 @@ public class ClientUtil {
 
         File file = new File(path);
 
-        if (!file.exists()) {
-            if(!file.mkdir()) {
-                return false;
-            }
-        }
-
         try {
+            if (!file.exists()) {
+                if(!file.createNewFile()) {
+                    return false;
+                }
+            }
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             fileOutputStream.write(content.getBytes("UTF-8"));
 

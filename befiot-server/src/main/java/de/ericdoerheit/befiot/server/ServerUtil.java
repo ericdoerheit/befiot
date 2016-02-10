@@ -15,6 +15,8 @@ import java.security.cert.CertificateException;
  */
 public class ServerUtil {
 
+    public static final String TENANT_SERVER_KEY_PREFIX = "tenant-server:";
+
     private static final SecureRandom secureRandom = new SecureRandom();
 
     public static String randomToken() {

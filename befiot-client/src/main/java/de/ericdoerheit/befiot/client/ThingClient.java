@@ -50,6 +50,10 @@ public class ThingClient {
 
     private EncryptionKeyAgent encryptionKeyAgent;
 
+    private boolean running = true;
+
+    private TimerTask updateTask;
+
     // Contains DKAs of tenants  (<tenantId, DKA>)
     private Map<String, DecryptionKeyAgent> decryptionKeyAgentMap;
 
@@ -169,6 +173,7 @@ public class ThingClient {
                 } else {
                     log.error("Could not receive encryption key agent from {}. Status code: {}", url, response.code());
                 }
+                response.body().close();
             } catch (IOException e) {
                 log.error("Could not receive encryption key agent from {}. {}", url, e.getMessage());
             }
@@ -182,6 +187,22 @@ public class ThingClient {
             decryptionKeyAgentMap.put(tenantId, decryptionKeyAgent);
         }
 
+        update();
+        Timer timer = new Timer();
+        updateTask = new TimerTask() {
+            @Override
+            public void run() {
+                update();
+            }
+        };
+        timer.schedule(updateTask, 2500, 2500);
+
+        while (running) {
+
+        }
+    }
+
+    private void update() {
         // Download list of tenants which provide DKAs from tenant server
         String[] tenantIds = null;
         String url = "https://"+tenantServerHost+":"+tenantServerPort+TENANT_LIST_URL;
@@ -193,10 +214,11 @@ public class ThingClient {
             if (200 <= response.code() && response.code() <= 299) {
                 log.debug("Response from request of GET {} Status code: {}", url, response.code());
                 // TODO: 08/02/16 Move body parsing to Core Util class (Deserializer) and use json
-                tenantIds = response.body().string().split(",");
+                tenantIds = response.body().string().replaceAll("\\[|\\]","").split(",");
             } else {
                 log.error("Could not receive list of tenants from {}. Status code: {}", url, response.code());
             }
+            response.body().close();
         } catch (IOException e) {
             log.error("Could not receive list of tenants from {}. {}", url, e.getMessage());
         }
@@ -204,35 +226,37 @@ public class ThingClient {
         // Download each new DKA from tenant server and store it in the clients file system
         if (tenantIds != null) {
             for (int i = 0; i < tenantIds.length; i++) {
-                if (!decryptionKeyAgentMap.keySet().contains(tenantIds[i])) {
-                    String tenantId = tenantIds[i];
+                if (tenantIds[i].length() > 3) {
+                    log.debug("Tenant {}.", tenantIds[i]);
+                    if (!decryptionKeyAgentMap.keySet().contains(tenantIds[i])) {
+                        String tenantId = tenantIds[i];
 
-                    String dkaUrl = "https://" + tenantServerHost + ":" + tenantServerPort
-                            + DECRYPTION_KEY_AGENT_URL + "/" + tenantId + "/" + thingId;
-                    Request dkaRequest = new Request.Builder()
-                            .url(dkaUrl)
-                            .build();
-                    try {
-                        Response response = httpClient.newCall(dkaRequest).execute();
-                        if (200 <= response.code() && response.code() <= 299) {
-                            log.debug("Response from request of GET {} Status code: {}", url, response.code());
-                            DecryptionKeyAgent decryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(response.body().string());
-                            decryptionKeyAgentMap.put(tenantId, decryptionKeyAgent);
-                        } else {
-                            log.error("Could not receive DKA from {}. Status code: {}", url, response.code());
+                        String dkaUrl = "https://" + tenantServerHost + ":" + tenantServerPort
+                                + DECRYPTION_KEY_AGENT_URL + "/" + tenantId + "/" + thingId;
+                        Request dkaRequest = new Request.Builder()
+                                .url(dkaUrl)
+                                .build();
+                        try {
+                            Response response = httpClient.newCall(dkaRequest).execute();
+                            if (200 <= response.code() && response.code() <= 299) {
+                                log.debug("Response from request of GET {} Status code: {}", dkaUrl, response.code());
+                                DecryptionKeyAgent decryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(response.body().string());
+                                decryptionKeyAgentMap.put(tenantId, decryptionKeyAgent);
+                            } else {
+                                log.error("Could not receive DKA from {}. Status code: {}", dkaUrl, response.code());
+                            }
+                            response.body().close();
+                        } catch (IOException e) {
+                            log.error("Could not receive DKA from {}. {}", dkaUrl, e.getMessage());
                         }
-                    } catch (IOException e) {
-                        log.error("Could not receive DKA from {}. {}", url, e.getMessage());
                     }
                 }
             }
         }
-
-        // TODO: 08/02/16 Periodically check for new DKAs?
     }
 
     public void stop(){
-
+        running = false;
     }
 
     public void nextEncryption(int[] ids) {
@@ -266,8 +290,15 @@ public class ThingClient {
             log.error("Configuration file not found.");
         }
 
-        ThingClient thingClient = new ThingClient(properties);
+        final ThingClient thingClient = new ThingClient(properties);
+
+        Runtime.getRuntime().addShutdownHook( new Thread() {
+            @Override public void run() {
+                log.info("Stop thing client.");
+                thingClient.stop();
+            }
+        } );
+
         thingClient.start();
-        thingClient.stop();
     }
 }
