@@ -42,4 +42,8 @@ public class RegistryUtil {
     public static String tenantKey(String tenantHostname, Integer tenantPort) {
         return TENANT_KEY_PREFIX+Util.tenantId(tenantHostname, tenantPort);
     }
+
+    public static String tenantKey(String tenantId) {
+        return TENANT_KEY_PREFIX+tenantId;
+    }
 }

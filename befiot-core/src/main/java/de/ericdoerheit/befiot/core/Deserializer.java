@@ -125,8 +125,8 @@ public class Deserializer {
     /* --- Encryption Header --- */
     public static EncryptionHeader encryptionHeaderFromEncryptionHeaderData(EncryptionHeaderData encryptionHeaderData) {
         Pairing pairing = Util.getDefaultPairing();
-        Element c0Elem = pairing.getGT().newElementFromBytes(encryptionHeaderData.getC0());
-        Element c1Elem = pairing.getGT().newElementFromBytes(encryptionHeaderData.getC1());
+        Element c0Elem = pairing.getG1().newElementFromBytes(encryptionHeaderData.getC0());
+        Element c1Elem = pairing.getG1().newElementFromBytes(encryptionHeaderData.getC1());
 
         EncryptionHeader encryptionHeader = new EncryptionHeader();
         encryptionHeader.setC0Elem(c0Elem);

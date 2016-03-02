@@ -47,8 +47,8 @@ public class EncryptionKeyAgent {
      */
     public EncryptionHeader getHeader() {
         EncryptionHeader encryptionHeader = new EncryptionHeader();
-        encryptionHeader.setC0Elem(c0Elem);
-        encryptionHeader.setC1Elem(c1Elem);
+        encryptionHeader.setC0Elem(this.c0Elem);
+        encryptionHeader.setC1Elem(this.c1Elem);
 
         return encryptionHeader;
     }

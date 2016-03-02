@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Array;
+import static de.ericdoerheit.befiot.core.Util.powerset;
 import java.util.*;
 
 import static org.junit.Assert.*;
@@ -85,40 +86,6 @@ public class EncryptionDecryptionTest {
         int[] testSet = new int[]{1, 2, 3, 4};
         List<int[]> pS = powerset(testSet);
         log.debug("{} Elements: {}", pS.size(), listAsString(pS));
-    }
-
-    private List<int[]> powerset(int[] s) {
-        List<int[]> result = new ArrayList<int[]>();
-
-        if (s.length == 0) {
-            result.add(s);
-            return result;
-        }
-
-        else {
-            int[] t = new int[s.length-1];
-            // T = S \ {e}
-            int e = s[0];
-
-            for (int i = 1; i < s.length; i++) {
-                t[i-1] = s[i];
-            }
-
-            result = powerset(t);
-
-            // tmp = {x union {e} | x in powerset(t)}
-            List<int[]> tmp = new ArrayList<int[]>();
-
-            for(int[] x : result) {
-                x = Arrays.copyOf(x, x.length+1);
-                x[x.length-1] = e;
-                tmp.add(x);
-            }
-
-            // return powerset(t) union tmp
-            result.addAll(tmp);
-            return result;
-        }
     }
 
     private String listAsString(List<int[]> list) {

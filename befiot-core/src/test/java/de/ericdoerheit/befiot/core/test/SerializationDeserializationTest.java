@@ -56,6 +56,7 @@ public class SerializationDeserializationTest {
         EncryptionKeyAgent deserializedEncryptionKeyAgent = Deserializer.jsonStringToEncryptionKeyAgent(encryptionKeyAgentJson);
         DecryptionKeyAgent deserializedDecryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(decryptionKeyAgentJson);
 
+
         assertNotNull(deserializedKeyAgentBuilder);
         assertNotNull(deserializedEncryptionKeyAgent);
         assertNotNull(deserializedDecryptionKeyAgent);
@@ -63,6 +64,13 @@ public class SerializationDeserializationTest {
         assertEquals(keyAgentBuilder, deserializedKeyAgentBuilder);
         assertEquals(encryptionKeyAgent, deserializedEncryptionKeyAgent);
         assertEquals(decryptionKeyAgent, deserializedDecryptionKeyAgent);
+
+        encryptionKeyAgent.next(new int[]{1});
+        EncryptionHeader encryptionHeader = encryptionKeyAgent.getHeader();
+        String encryptionHeaderJson = Serializer.encryptionHeaderToJsonString(encryptionHeader);
+        EncryptionHeader deserializedEncryptionHeader = Deserializer.jsonStringToEncryptionHeader(encryptionHeaderJson);
+        assertNotNull(deserializedEncryptionHeader);
+        assertEquals(encryptionHeader, deserializedEncryptionHeader);
 
         // TODO: 07/02/16 Test TenantData and ThingData Serialitazion and Deserialization
         // TODO: 07/02/16 Test null!

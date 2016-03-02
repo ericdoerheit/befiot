@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuite tests="3" failures="0" name="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" time="6.212" errors="0" skipped="1">
+<testsuite tests="3" failures="0" name="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" time="3.714" errors="0" skipped="1">
   <properties>
     <property name="idea.version" value="15.0.3"/>
     <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
@@ -13,7 +13,7 @@
     <property name="guice.disable.misplaced.annotation.check" value="true"/>
     <property name="java.vm.name" value="Java HotSpot(TM) 64-Bit Server VM"/>
     <property name="file.encoding.pkg" value="sun.io"/>
-    <property name="idea.launcher.port" value="7534"/>
+    <property name="idea.launcher.port" value="7533"/>
     <property name="user.country" value="US"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="sun.os.patch.level" value="unknown"/>
@@ -47,7 +47,7 @@
     <property name="java.vm.specification.version" value="1.8"/>
     <property name="sun.arch.data.model" value="64"/>
     <property name="java.home" value="/Library/Java/JavaVirtualMachines/jdk1.8.0_11.jdk/Contents/Home/jre"/>
-    <property name="sun.java.command" value="com.intellij.rt.execution.application.AppMain org.codehaus.classworlds.Launcher -Didea.version=15.0.3 install"/>
+    <property name="sun.java.command" value="com.intellij.rt.execution.application.AppMain org.codehaus.classworlds.Launcher -Didea.version=15.0.3 test"/>
     <property name="java.specification.vendor" value="Oracle Corporation"/>
     <property name="user.language" value="en"/>
     <property name="awt.toolkit" value="sun.lwawt.macosx.LWCToolkit"/>
@@ -65,9 +65,9 @@
     <property name="ftp.nonProxyHosts" value="local|*.local|169.254/16|*.169.254/16"/>
     <property name="sun.cpu.isalist" value=""/>
   </properties>
-  <testcase classname="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" name="printPowerSet" time="0.005"/>
-  <testcase classname="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" name="encryptedKeyEqualsDecryptedKey" time="3.103"/>
-  <testcase classname="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" name="printDecryptionKeyAgentSizes" time="3.104">
+  <testcase classname="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" name="printDecryptionKeyAgentSizes" time="0.072">
     <skipped/>
   </testcase>
+  <testcase classname="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" name="printPowerSet" time="0.015"/>
+  <testcase classname="de.ericdoerheit.befiot.core.test.EncryptionDecryptionTest" name="encryptedKeyEqualsDecryptedKey" time="3.627"/>
 </testsuite>

@@ -1,12 +1,11 @@
 package de.ericdoerheit.befiot.client;
 
-import de.ericdoerheit.befiot.core.DecryptionKeyAgent;
-import de.ericdoerheit.befiot.core.Deserializer;
-import de.ericdoerheit.befiot.core.EncryptionKeyAgent;
-import de.ericdoerheit.befiot.core.Serializer;
+import de.ericdoerheit.befiot.core.*;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,14 +29,19 @@ public class ThingClient {
     private final static Logger log = LoggerFactory.getLogger(ThingClient.class);
 
     public static final String ENCRYPTION_KEY_AGENT_URL = "/encryption-key-agent";
-    public static final String TENANT_LIST_URL = "/tenants";
+
     public static final String DECRYPTION_KEY_AGENT_URL = "/decryption-key-agent";
 
+    public static final String REGISTRY_TENANT_LIST_URL = "/tenants";
+    public static final String REGISTRY_ENCRYPTION_KEY_AGENT_URL = "/encryption-key-agent";
     private Integer thingId;
     private String thingToken;
 
     private String tenantServerHost;
     private Integer tenantServerPort;
+
+    private String tenantRegistryHost;
+    private Integer tenantRegistryPort;
 
     private String keyStoreLocation;
     private String keyStorePassword;
@@ -48,25 +52,23 @@ public class ThingClient {
 
     private String dataLocation;
 
-    private EncryptionKeyAgent encryptionKeyAgent;
-
-    private boolean running = true;
-
-    private TimerTask updateTask;
-
-    // Contains DKAs of tenants  (<tenantId, DKA>)
-    private Map<String, DecryptionKeyAgent> decryptionKeyAgentMap;
+    // Contains EKAs of all tenants  (<tenantId, DKA>)
+    private Map<String, EncryptionKeyAgent> encryptionKeyAgentMap;
+    private DecryptionKeyAgent decryptionKeyAgent;
 
     private OkHttpClient httpClient;
 
     public ThingClient(Properties properties) {
-        decryptionKeyAgentMap = new HashMap<String, DecryptionKeyAgent>();
+        encryptionKeyAgentMap = new HashMap<String, EncryptionKeyAgent>();
 
         thingId = Integer.valueOf(properties.getProperty("thing-id"));
         thingToken = properties.getProperty("thing-token");
 
         tenantServerHost = properties.getProperty("tenant-server-host");
         tenantServerPort = Integer.valueOf(properties.getProperty("tenant-server-port"));
+
+        tenantRegistryHost = properties.getProperty("tenant-registry-host");
+        tenantRegistryPort = Integer.valueOf(properties.getProperty("tenant-registry-port"));
 
         keyStoreLocation = properties.getProperty("key-store-location");
         keyStorePassword = properties.getProperty("key-store-password");
@@ -90,6 +92,7 @@ public class ThingClient {
     }
 
     public void start() {
+        logEvent("{\"event\": \"client_started\", \"data\":\""+thingId+"\"}");
 
         SSLContext sslContext = null;
         try {
@@ -118,8 +121,8 @@ public class ThingClient {
         File dataDirectory = new File(dataLocation);
 
         File thingClientFile = null;
-        File encryptionKeyAgentDataFile = null;
-        List<File> decryptionKeyAgentDataFiles = new LinkedList<File>();
+        File decryptionKeyAgentDataFile = null;
+        List<File> encryptionKeyAgentDataFiles = new LinkedList<File>();
         if(dataDirectory != null) {
             if (!dataDirectory.exists()) {
                 log.debug("Data directory does not exist. It will be created now.");
@@ -132,10 +135,10 @@ public class ThingClient {
                     if (!file.isDirectory()) {
                         if (isThingClientFile(file)) {
                             thingClientFile = file;
-                        } else if (isEncryptionKeyAgentFile(file)) {
-                            encryptionKeyAgentDataFile = file;
                         } else if (isDecryptionKeyAgentFile(file)) {
-                            decryptionKeyAgentDataFiles.add(file);
+                            decryptionKeyAgentDataFile = file;
+                        } else if (isEncryptionKeyAgentFile(file)) {
+                            encryptionKeyAgentDataFiles.add(file);
                         }
                         fileNames += file.getName() + " ";
                     }
@@ -144,18 +147,12 @@ public class ThingClient {
             }
         }
 
-        /* Maybe such a file will be needed
-        if (thingClientFile == null) {
+        if(decryptionKeyAgentDataFile != null) {
+            decryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(loadFileContentIntoString(decryptionKeyAgentDataFile));
+            log.debug("Loaded DKA from file: {}", decryptionKeyAgent);
         } else {
-        }
-        */
-
-        if(encryptionKeyAgentDataFile != null) {
-            encryptionKeyAgent = Deserializer.jsonStringToEncryptionKeyAgent(loadFileContentIntoString(encryptionKeyAgentDataFile));
-            log.debug("Loaded EKA from file: {}", encryptionKeyAgent);
-        } else {
-            // Download EKA and store it
-            String url = "https://"+tenantServerHost+":"+tenantServerPort+ENCRYPTION_KEY_AGENT_URL;
+            // Download DKA and store it
+            String url = "https://"+tenantServerHost+":"+tenantServerPort+DECRYPTION_KEY_AGENT_URL+"/"+thingId;
             Request request = new Request.Builder()
                     .url(url)
                     .build();
@@ -166,46 +163,32 @@ public class ThingClient {
                     log.debug("Response from request of GET {} Status code: {}", url, response.code());
 
                     // TODO: 08/02/16 Validate response
-                    encryptionKeyAgent = Deserializer.jsonStringToEncryptionKeyAgent(response.body().string());
-                    saveStringToFile(dataLocation+"/encryption-key-agent.json",
-                            Serializer.encryptionKeyAgentToJsonString(encryptionKeyAgent));
+                    decryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(response.body().string());
+                    saveStringToFile(dataLocation+File.separator+"decryption-key-agent.json",
+                            Serializer.decryptionKeyAgentToJsonString(decryptionKeyAgent));
                     
                 } else {
-                    log.error("Could not receive encryption key agent from {}. Status code: {}", url, response.code());
+                    log.error("Could not receive decryption key agent from {}. Status code: {}", url, response.code());
                 }
                 response.body().close();
             } catch (IOException e) {
-                log.error("Could not receive encryption key agent from {}. {}", url, e.getMessage());
+                log.error("Could not receive decryption key agent from {}. {}", url, e.getMessage());
             }
         }
 
-        // Load DKAs into Map
-        for (File file : decryptionKeyAgentDataFiles) {
-            String tenantId = getTenantIdFromDkaFileName(file.getName());
+        // Load EKAs into Map
+        for (File file : encryptionKeyAgentDataFiles) {
+            String tenantId = getTenantIdFromEkaFileName(file.getName());
             String jsonString = loadFileContentIntoString(file);
-            DecryptionKeyAgent decryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(jsonString);
-            decryptionKeyAgentMap.put(tenantId, decryptionKeyAgent);
-        }
-
-        update();
-        Timer timer = new Timer();
-        updateTask = new TimerTask() {
-            @Override
-            public void run() {
-                update();
-            }
-        };
-        timer.schedule(updateTask, 2500, 2500);
-
-        while (running) {
-
+            EncryptionKeyAgent encryptionKeyAgent = Deserializer.jsonStringToEncryptionKeyAgent(jsonString);
+            encryptionKeyAgentMap.put(tenantId, encryptionKeyAgent);
         }
     }
 
     private void update() {
-        // Download list of tenants which provide DKAs from tenant server
+        // Check for new tenants and download EKA from tenant registry
         String[] tenantIds = null;
-        String url = "https://"+tenantServerHost+":"+tenantServerPort+TENANT_LIST_URL;
+        String url = "https://"+tenantRegistryHost+":"+tenantRegistryPort+REGISTRY_TENANT_LIST_URL;
         Request request = new Request.Builder()
                 .url(url)
                 .build();
@@ -223,31 +206,32 @@ public class ThingClient {
             log.error("Could not receive list of tenants from {}. {}", url, e.getMessage());
         }
 
-        // Download each new DKA from tenant server and store it in the clients file system
+        // Download each new EKA from registry and store it in the clients file system
         if (tenantIds != null) {
             for (int i = 0; i < tenantIds.length; i++) {
                 if (tenantIds[i].length() > 3) {
                     log.debug("Tenant {}.", tenantIds[i]);
-                    if (!decryptionKeyAgentMap.keySet().contains(tenantIds[i])) {
+                    if (!encryptionKeyAgentMap.keySet().contains(tenantIds[i])) {
                         String tenantId = tenantIds[i];
 
-                        String dkaUrl = "https://" + tenantServerHost + ":" + tenantServerPort
-                                + DECRYPTION_KEY_AGENT_URL + "/" + tenantId + "/" + thingId;
-                        Request dkaRequest = new Request.Builder()
-                                .url(dkaUrl)
+                        String ekaUrl = "https://" + tenantRegistryHost + ":" + tenantRegistryPort
+                                + ENCRYPTION_KEY_AGENT_URL + "/" + tenantId;
+                        Request ekaRequest = new Request.Builder()
+                                .url(ekaUrl)
                                 .build();
                         try {
-                            Response response = httpClient.newCall(dkaRequest).execute();
+                            Response response = httpClient.newCall(ekaRequest).execute();
+                            String body = response.body().string();
                             if (200 <= response.code() && response.code() <= 299) {
-                                log.debug("Response from request of GET {} Status code: {}", dkaUrl, response.code());
-                                DecryptionKeyAgent decryptionKeyAgent = Deserializer.jsonStringToDecryptionKeyAgent(response.body().string());
-                                decryptionKeyAgentMap.put(tenantId, decryptionKeyAgent);
+                                log.debug("Response from request of GET {} Status code: {}", ekaUrl, response.code());
+                                EncryptionKeyAgent encryptionKeyAgent = Deserializer.jsonStringToEncryptionKeyAgent(body);
+                                encryptionKeyAgentMap.put(tenantId, encryptionKeyAgent);
+                                saveStringToFile(dataLocation+File.separator+getEkaFileNameFromTenantId(tenantId), body);
                             } else {
-                                log.error("Could not receive DKA from {}. Status code: {}", dkaUrl, response.code());
+                                log.error("Could not receive EKA from {}. Status code: {}", ekaUrl, response.code());
                             }
-                            response.body().close();
                         } catch (IOException e) {
-                            log.error("Could not receive DKA from {}. {}", dkaUrl, e.getMessage());
+                            log.error("Could not receive EKA from {}. {}", ekaUrl, e.getMessage());
                         }
                     }
                 }
@@ -256,23 +240,69 @@ public class ThingClient {
     }
 
     public void stop(){
-        running = false;
+        logEvent("{\"event\": \"client_stopped\", \"data\":\""+thingId+"\"}");
     }
 
-    public void nextEncryption(int[] ids) {
-        encryptionKeyAgent.next(ids);
+    public void nextEncryption(String tenantId, int[] ids) {
+        logEvent("{\"event\": \"encrypt_data\", \"data\":\""+thingId+"\"}");
+
+        EncryptionKeyAgent encryptionKeyAgent = encryptionKeyAgentMap.get(tenantId);
+
+        if (encryptionKeyAgent == null) {
+            update();
+            encryptionKeyAgent = encryptionKeyAgentMap.get(tenantId);
+        }
+
+        if (encryptionKeyAgent == null) {
+            log.error("Encryption key agent not available for tenant with id {}", tenantId);
+            return;
+        } else {
+            encryptionKeyAgentMap.get(tenantId).next(ids);
+        }
     }
 
-    public String encryptionHeader() {
-        return Serializer.encryptionHeaderToJsonString(encryptionKeyAgent.getHeader());
+    public String encryptionHeader(String tenantId) {
+        EncryptionKeyAgent encryptionKeyAgent = encryptionKeyAgentMap.get(tenantId);
+
+        if (encryptionKeyAgent == null) {
+            log.error("Encryption key agent not available for tenant with id {}", tenantId);
+            return null;
+        }
+
+        if (encryptionKeyAgent.getHeader() != null) {
+            return Serializer.encryptionHeaderToJsonString(encryptionKeyAgentMap.get(tenantId).getHeader());
+        }
+
+        return null;
+
     }
 
-    public byte[] encryptionKeyBytes() {
-        return encryptionKeyAgent.getKeyBytes();
+    public byte[] encryptionKeyBytes(String tenantId) {EncryptionKeyAgent encryptionKeyAgent = encryptionKeyAgentMap.get(tenantId);
+
+        if (encryptionKeyAgent == null) {
+            log.error("Encryption key agent not available for tenant with id {}", tenantId);
+            return null;
+        }
+
+        return encryptionKeyAgentMap.get(tenantId).getKeyBytes();
     }
 
     public byte[] decryptionKeyBytes(String tenantId, String encryptionHeader, int[] ids) {
-        return decryptionKeyAgentMap.get(tenantId).getKeyBytes(Deserializer.jsonStringToEncryptionHeader(encryptionHeader), ids);
+        logEvent("{\"event\": \"decrypt_data\", \"data\":\""+thingId+"\"}");
+
+        if (decryptionKeyAgent == null) {
+            log.error("Decryption key agent not available for tenant with id {}", tenantId);
+            return null;
+        }
+        return decryptionKeyAgent.getKeyBytes(Deserializer.jsonStringToEncryptionHeader(encryptionHeader), ids);
+    }
+
+    public String getTenantId() {
+        return Util.tenantId(tenantServerHost, tenantServerPort);
+    }
+
+    public Integer getThingId() {
+        return thingId;
     }
 
     public static void main(String[] args) {
@@ -300,5 +330,11 @@ public class ThingClient {
         } );
 
         thingClient.start();
+        thingClient.nextEncryption(thingClient.getTenantId(), new int[]{thingClient.getThingId()});
+        String header = thingClient.encryptionHeader(thingClient.getTenantId());
+        byte[] encryptionKeyBytes = thingClient.encryptionKeyBytes(thingClient.getTenantId());
+        byte[] decryptionKeyBytes = thingClient.decryptionKeyBytes(thingClient.getTenantId(), header, new int[]{thingClient.getThingId()});
+
+        log.info("Equal: {}", Arrays.equals(encryptionKeyBytes, decryptionKeyBytes));
     }
 }

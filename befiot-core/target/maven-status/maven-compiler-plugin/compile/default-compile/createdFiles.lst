@@ -1,8 +1,14 @@
 de/ericdoerheit/befiot/core/data/EncryptionHeaderData.class
 de/ericdoerheit/befiot/core/data/EncryptionKeyAgentData.class
+de/ericdoerheit/befiot/core/Util.class
+de/ericdoerheit/befiot/core/Deserializer.class
 de/ericdoerheit/befiot/core/data/ThingData.class
 de/ericdoerheit/befiot/core/EncryptionHeader.class
 de/ericdoerheit/befiot/core/data/RegistryData.class
+de/ericdoerheit/befiot/core/DecryptionKeyAgent.class
+de/ericdoerheit/befiot/core/KeyAgentBuilder.class
 de/ericdoerheit/befiot/core/data/DecryptionKeyAgentData.class
 de/ericdoerheit/befiot/core/data/TenantData.class
+de/ericdoerheit/befiot/core/Serializer.class
+de/ericdoerheit/befiot/core/EncryptionKeyAgent.class
 de/ericdoerheit/befiot/core/data/KeyAgentBuilderData.class

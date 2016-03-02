@@ -1,5 +1,8 @@
 package de.ericdoerheit.befiot.server;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
@@ -14,6 +17,10 @@ import java.security.cert.CertificateException;
  * Created by ericdorheit on 06/02/16.
  */
 public class ServerUtil {
+
+    final static Level EVENT = Level.forName("EVENT", 550);
+    final static org.apache.logging.log4j.Logger eventLogger = LogManager.getLogger();
+
 
     public static final String TENANT_SERVER_KEY_PREFIX = "tenant-server:";
 
@@ -53,5 +60,9 @@ public class ServerUtil {
         sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), secureRandom);
 
         return sslContext;
+    }
+
+    protected static void logEvent(String message) {
+        eventLogger.log(EVENT, message);
     }
 }

@@ -2,6 +2,8 @@ package de.ericdoerheit.befiot.client;
 
 import de.ericdoerheit.befiot.core.DecryptionKeyAgent;
 import de.ericdoerheit.befiot.core.EncryptionKeyAgent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,9 +22,12 @@ import java.util.Map;
 public class ClientUtil {
     private final static Logger log = LoggerFactory.getLogger(ClientUtil.class);
 
+    final static Level EVENT = Level.forName("EVENT", 550);
+    final static org.apache.logging.log4j.Logger eventLogger = LogManager.getLogger();
+
     public static final String THING_CLIENT_FILE_NAME_REGEX = "thing-client.json";
-    public static final String ENCRYPTION_KEY_AGENT_FILE_NAME_REGEX = "encryption-key-agent.json";
-    public static final String DECRYPTION_KEY_AGENT_FILE_NAME_REGEX = "(decryption-key-agent_).{1,}(.json)";
+    public static final String DECRYPTION_KEY_AGENT_FILE_NAME_REGEX = "decryption-key-agent.json";
+    public static final String ENCRYPTION_KEY_AGENT_FILE_NAME_REGEX = "(encryption-key-agent_).{1,}(.json)";
 
     public static SSLContext getSSLContext(FileInputStream keyStoreFis, FileInputStream trustStoreFis,
                                            String keyStorePassword, String keyPassword, String trustStorePassword)
@@ -82,6 +87,7 @@ public class ClientUtil {
             }
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             fileOutputStream.write(content.getBytes("UTF-8"));
+            fileOutputStream.close();
 
         } catch (FileNotFoundException e) {
             log.error(e.getMessage());
@@ -96,13 +102,17 @@ public class ClientUtil {
         return true;
     }
 
-    public static String getTenantIdFromDkaFileName(String fileName) {
-        String result = fileName.replaceAll("decryption-key-agent_|.json", "");
+    public static String getTenantIdFromEkaFileName(String fileName) {
+        String result = fileName.replaceAll("encryption-key-agent_|.json", "");
         return result;
     }
 
-    public static String getDkaFileNameFromTenantId(String tenantId) {
-        String result = "decryption-key-agent_"+tenantId+".json";
+    public static String getEkaFileNameFromTenantId(String tenantId) {
+        String result = "encryption-key-agent_"+tenantId+".json";
         return result;
+    }
+
+    protected static void logEvent(String message) {
+        eventLogger.log(EVENT, message);
     }
 }

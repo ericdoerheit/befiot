@@ -27,4 +27,15 @@ public class EncryptionHeader {
     public void setC1Elem(Element c1Elem) {
         this.c1Elem = c1Elem;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        EncryptionHeader that = (EncryptionHeader) o;
+
+        if (!c0Elem.isEqual(that.c0Elem)) return false;
+        return c1Elem.isEqual(that.c1Elem);
+    }
 }
