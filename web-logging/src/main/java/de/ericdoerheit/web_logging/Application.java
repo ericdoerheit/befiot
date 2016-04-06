@@ -15,6 +15,7 @@ public class Application {
         }
 
         Spark.port(port);
+        Spark.staticFileLocation("/public");
         Spark.threadPool(8);
         Spark.webSocket("/logs", WebSocketLogging.class);
         Spark.init();

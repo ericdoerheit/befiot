@@ -20,6 +20,9 @@ import static org.junit.Assert.*;
 public class EncryptionDecryptionTest {
     private Logger log = LoggerFactory.getLogger(EncryptionDecryptionTest.class);
 
+    private long validNotBefore = 1000;
+    private long validNotAfter = 2000;
+
     @Test
     public void encryptedKeyEqualsDecryptedKey() {
         KeyAgentBuilder keyAgentBuilder;
@@ -27,7 +30,7 @@ public class EncryptionDecryptionTest {
         ArrayList<DecryptionKeyAgent> decryptionKeyAgents = new ArrayList<DecryptionKeyAgent>();
 
         for (int n = 1; n < 5; n++) {
-            keyAgentBuilder = new KeyAgentBuilder(Util.getDefaultPairing(), n);
+            keyAgentBuilder = new KeyAgentBuilder(validNotBefore, validNotAfter, Util.getDefaultPairing(), n);
             encryptionKeyAgent = keyAgentBuilder.getEncryptionKeyAgent();
             decryptionKeyAgents.clear();
             for (int i = 1; i <= n; i++) {
@@ -43,6 +46,7 @@ public class EncryptionDecryptionTest {
             List<int[]> subsets = powerset(ids);
 
             for (int[] subset : subsets){
+                log.debug("Subset: {}", Arrays.toString(subset));
                 encryptionKeyAgent.next(subset);
 
                 Element encryptedKey = encryptionKeyAgent.getKey();
@@ -51,10 +55,8 @@ public class EncryptionDecryptionTest {
                 for (DecryptionKeyAgent decryptionKeyAgent : decryptionKeyAgents) {
                     Element decryptedKey = decryptionKeyAgent.getKey(header, subset);
 
-                    if(Arrays.binarySearch(subset, decryptionKeyAgent.getId()) > 0) {
+                    if(Arrays.binarySearch(subset, decryptionKeyAgent.getId()) >= 0) {
                         assertArrayEquals(decryptedKey.toBytes(), encryptedKey.toBytes());
-                    } else {
-                        // TODO: 04/02/16 assertNotEqual
                     }
                 }
             }
@@ -72,7 +74,7 @@ public class EncryptionDecryptionTest {
 
         for (int i = 0; i < numberOfDecryptionKeyAgents.length; i++) {
             long start = System.currentTimeMillis();
-            keyAgentBuilder = new KeyAgentBuilder(pairing, numberOfDecryptionKeyAgents[i]);
+            keyAgentBuilder = new KeyAgentBuilder(validNotBefore, validNotAfter, pairing, numberOfDecryptionKeyAgents[i]);
             DecryptionKeyAgent decryptionKeyAgent = keyAgentBuilder.getDecryptionKeyAgent(1);
             int size = Util.numberOfBytesOfListOfElements(decryptionKeyAgent.getPublicKey());
             long duration = System.currentTimeMillis() - start;

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Web Logging</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" type="text/css" href="vendor/vis.min.css" />
+	<style>
+	#network-graph {
+		width: 100%;
+		height: 600px;
+		border: 1px solid lightgray;
+	}
+	</style>
+</head>
+<body>
+
+	<div id="network-graph"></div>
+
+	<script type="text/javascript" src="vendor/vis.min.js"></script>
+	<script>
+	nodes = new vis.DataSet();
+	edges = new vis.DataSet();
+
+	var container = document.getElementById("network-graph");
+	nodes.add({id: "broker", label: "Broker", color: "#FFCC44", shape: "box", font:{size:20}});
+
+
+	function highlightNode(id, highlightColor, time) {
+		nodes.update({id: id, color: highlightColor});
+
+			function resetHightlight() {
+				nodes.update({id: id, color: DEFAULT_COLOR});
+			}
+
+			setTimeout(resetHightlight, time);
+	}
+
+	var DEFAULT_COLOR = '#66AAFF';
+	var ACTIVE_COLOR = '#DDDD22';
+	var SUCCESS_COLOR = '#22DD22';
+	var ERROR_COLOR = '#FF6644';
+
+	highlightNode("broker", ERROR_COLOR, 2000);
+
+	var data = {
+		nodes: nodes,
+		edges: edges
+	};
+	var options = {
+		autoResize: true,
+		height: '100%',
+		width: '100%',
+		interaction:{
+			dragNodes:false,
+			dragView: true,
+			hover: false,
+		},
+		physics: {
+			enabled: true
+		}
+	}
+	network = new vis.Network(container, data, options);
+
+
+	</script>
+</body>
+</html>

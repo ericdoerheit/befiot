@@ -1,5 +1,6 @@
 package de.ericdoerheit.befiot.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.ericdoerheit.befiot.core.DecryptionKeyAgent;
 import de.ericdoerheit.befiot.core.EncryptionKeyAgent;
 import org.apache.logging.log4j.Level;
@@ -14,6 +15,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -22,12 +24,18 @@ import java.util.Map;
 public class ClientUtil {
     private final static Logger log = LoggerFactory.getLogger(ClientUtil.class);
 
-    final static Level EVENT = Level.forName("EVENT", 550);
+    final static Level EVENT = Level.forName("EVENT", 350);
     final static org.apache.logging.log4j.Logger eventLogger = LogManager.getLogger();
 
-    public static final String THING_CLIENT_FILE_NAME_REGEX = "thing-client.json";
     public static final String DECRYPTION_KEY_AGENT_FILE_NAME_REGEX = "decryption-key-agent.json";
     public static final String ENCRYPTION_KEY_AGENT_FILE_NAME_REGEX = "(encryption-key-agent_).{1,}(.json)";
+    public static final String SESSION_KEY_FILE_NAME_REGEX = "(session-key_).{1,}(.json)";
+
+    private static ObjectMapper objectMapper = new ObjectMapper();
+
+    public static ObjectMapper getObjectMapper() {
+        return objectMapper;
+    }
 
     public static SSLContext getSSLContext(FileInputStream keyStoreFis, FileInputStream trustStoreFis,
                                            String keyStorePassword, String keyPassword, String trustStorePassword)
@@ -53,16 +61,16 @@ public class ClientUtil {
         return sslContext;
     }
 
-    public static boolean isThingClientFile(File file) {
-        return file.getName() != null && file.getName().matches(THING_CLIENT_FILE_NAME_REGEX);
-    }
-
     public static boolean isEncryptionKeyAgentFile(File file) {
         return file.getName() != null && file.getName().matches(ENCRYPTION_KEY_AGENT_FILE_NAME_REGEX);
     }
 
     public static boolean isDecryptionKeyAgentFile(File file) {
         return file.getName() != null && file.getName().matches(DECRYPTION_KEY_AGENT_FILE_NAME_REGEX);
+    }
+
+    public static boolean isSessionKeyFile(File file) {
+        return file.getName() != null && file.getName().matches(SESSION_KEY_FILE_NAME_REGEX);
     }
 
     public static String loadFileContentIntoString(File file) {
@@ -114,5 +122,35 @@ public class ClientUtil {
 
     protected static void logEvent(String message) {
         eventLogger.log(EVENT, message);
+    }
+
+    public static String byteMapToString(Map<String, byte[]> map) {
+        if(map == null) return null;
+
+        if (map.isEmpty()) {
+            return map.toString();
+        }
+
+        String result = "[ ";
+        for (Map.Entry<String, byte[]> entry : map.entrySet()) {
+            result += "{" + entry.getKey() + " : " + Arrays.hashCode(entry.getValue()) + "} ";
+        }
+
+        return result + "]";
+    }
+
+    public static String intMapToString(Map<String, int[]> map) {
+        if(map == null) return null;
+
+        if (map.isEmpty()) {
+            return map.toString();
+        }
+
+        String result = "[ ";
+        for (Map.Entry<String, int[]> entry : map.entrySet()) {
+            result += "{" + entry.getKey() + " : " + Arrays.toString(entry.getValue()) + "} ";
+        }
+
+        return result + "]";
     }
 }

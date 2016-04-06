@@ -9,9 +9,29 @@
     </Socket>
 </Appenders>
 <Loggers>
-    <Root level="trace">
-        <AppenderRef ref="console"/>
+
+    <Logger name="de.ericdoerheit.befiot.client.ClientUtil" level="event">
         <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Logger name="de.ericdoerheit.befiot.client.ProtectionClient" level="info">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Logger name="de.ericdoerheit.befiot.server.ServerUtil" level="event">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Logger name="de.ericdoerheit.befiot.server.TenantServer" level="info">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Logger name="de.ericdoerheit.befiot.registry.Registry" level="info">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Root level="info">
+        <AppenderRef ref="console"/>
     </Root>
 </Loggers>
 </Configuration>

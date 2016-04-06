@@ -1,77 +1,84 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Web Logging</title>
+	<head>
+		<title>Web Logging</title>
 
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-        <link rel="stylesheet" href="css/kube.min.css" />
-        <link rel="stylesheet" href="css/style.css" />
+		<link rel="stylesheet" type="text/css" href="css/kube.min.css" />
+		<link rel="stylesheet" type="text/css" href="css/style.css" />
+		<link rel="stylesheet" type="text/css" href="vendor/vis.min.css" />
 
-    </head>
-    <body onload="start()">
-        <row centered>
-            <column class="content" cols="11">
-                <row>
-                    <column cols="12">
-                        <h1>Web Logging</h1>
-                    </column>
-                </row>
-                <row>
-                    <column cols="12">
-                        <form class="forms">
-                            <fieldset>
-                                <legend>Filter</legend>
-                                <row>
-                                    <column cols="6">
-                                        <input id="search-text" type="text" name="search" placeholder="Search">
-                                    </column>
-                                    <column cols="6">
-                                        <section class="checkbox-list">
-                                            <label><input id="trace-level" type="checkbox"> Trace</label>
-                                            <label><input id="debug-level" type="checkbox"> Debug</label>
-                                            <label><input id="info-level" type="checkbox"> Info</label>
-                                            <label><input id="warning-level" type="checkbox"> Warning</label>
-                                            <label><input id="error-level" type="checkbox"> Error</label>
-                                        </section>
-                                    </column>
-                                </row>
-                                <row>
-                                    <column cols="6">
-                                        <section class="checkbox-list" id="loggers">
-                                            <label><input id="de" type="checkbox">de</label>
-                                        </section>
-                                    </column>
-                                </row>
-                            </fieldset>
-                        </form>
-                    </column>
-                </row>
-                <row>
-                    <column cols="12">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Log Level</th>
-                                    <th>Logger Name</th>
-                                    <th>Message</th>
-                                </tr>
-                            </thead>
-                            <tbody id="log-table-body">
-                                <tr>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </column>
-                </row>
-            </column>
-        </row>
-        <script src="js/controller.js"></script>
-    </body>
+	</head>
+	<body onload="start()">
+		<row>
+			<column cols="4">
+				<h1>Web Logging</h1>
+			</column>
+			<column cols="8" class="text-right">
+				<button type="primary" upper id="logging-button" onclick="showLogging()" class="hide">Logging</button>
+				<button type="primary" upper id="network-button" onclick="showNetwork()">Network</button>
+			</column>
+		</row>
+		<row id="filters">
+			<column cols="12">
+				<fieldset>
+					<legend>Filter</legend>
+					<form class="forms">
+						<row>
+							<column cols="6">
+								<input id="search-text" type="text" name="search" placeholder="Search">
+							</column>
+							<column cols="6">
+								<section class="checkbox-list">
+									<label><input id="trace-level" type="checkbox" checked> Trace</label>
+									<label><input id="debug-level" type="checkbox" checked> Debug</label>
+									<label><input id="info-level" type="checkbox" checked> Info</label>
+									<label><input id="warning-level" type="checkbox" checked> Warning</label>
+									<label><input id="error-level" type="checkbox" checked> Error</label>
+								</section>
+							</column>
+						</row>
+						<row>
+							<column cols="12">
+								<section class="checkbox-list" id="loggers">
+								</section>
+							</column>
+						</row>
+					</form>
+					<button class="right" onclick="applyFilter()">Apply Filter</button>
+				</fieldset>
+			</column>
+		</row>
+		<row id="log-table">
+			<column cols="12">
+				<table>
+					<thead>
+						<tr>
+							<th>Time</th>
+							<th>Log Level</th>
+							<th>Logger Name</th>
+							<th>Message</th>
+						</tr>
+					</thead>
+					<tbody id="log-table-body">
+						<tr>
+							<td></td>
+							<td></td>
+							<td></td>
+							<td></td>
+						</tr>
+					</tbody>
+				</table>
+			</column>
+		</row>
+		<row id="network" class="hide">
+			<column cols="12">
+				<div id="network-graph"></div>
+			</column>
+		</row>
+		<script type="text/javascript" src="vendor/vis.min.js"></script>
+		<script type="text/javascript" src="js/controller.js"></script>
+	</body>
 </html>

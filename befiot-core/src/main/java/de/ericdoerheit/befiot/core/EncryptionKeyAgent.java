@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -14,6 +15,9 @@ import java.util.List;
  */
 public class EncryptionKeyAgent {
     private static final Logger log = LoggerFactory.getLogger(EncryptionKeyAgent.class);
+
+    private long validNotBefore;
+    private long validNotAfter;
 
     private Pairing pairing;
     private List<Element> publicKey;
@@ -29,8 +33,12 @@ public class EncryptionKeyAgent {
      * Initialize the Decryption Key Agent with given public key.
      * @param publicKey
      * @param pairing
+     * @param validNotBefore
+     * @param validNotAfter
      */
-    public EncryptionKeyAgent(Pairing pairing, List<Element> publicKey) {
+    public EncryptionKeyAgent(long validNotBefore, long validNotAfter, Pairing pairing, List<Element> publicKey) {
+        this.validNotBefore = validNotBefore;
+        this.validNotAfter = validNotAfter;
         this.pairing = pairing;
         this.publicKey = publicKey;
 
@@ -91,12 +99,20 @@ public class EncryptionKeyAgent {
 
         for (int i = 0; i < ids.length; i++) {
             log.debug("Multiply g_{} to product.", n+1-ids[i]);
-            productElem.mul(publicKey.get(n+1-ids[i]));
+
+            int k = n+1-ids[i];
+            log.debug("n={}, id={}, k={}", n, ids[i], k);
+            productElem.mul(publicKey.get(k));
         }
 
         this.c1Elem = productElem.pow(t.toBigInteger());
 
         log.debug("Encryption for {} users. A total of n = {} users are in the system. PK size = {}.", ids.length, n, publicKey.size());
+        log.trace("C0: {}, C1: {}, IDs: {}", Arrays.hashCode(this.c0Elem.toBytes()), Arrays.hashCode(this.c1Elem.toBytes()), Arrays.toString(ids));
+    }
+
+    public boolean validate(long timestamp) {
+        return validNotBefore <= timestamp && timestamp <= validNotAfter;
     }
 
     public List<Element> getPublicKey() {
@@ -105,6 +121,22 @@ public class EncryptionKeyAgent {
 
     public void setPublicKey(List<Element> publicKey) {
         this.publicKey = publicKey;
+    }
+
+    public long getValidNotBefore() {
+        return validNotBefore;
+    }
+
+    public void setValidNotBefore(long validNotBefore) {
+        this.validNotBefore = validNotBefore;
+    }
+
+    public long getValidNotAfter() {
+        return validNotAfter;
+    }
+
+    public void setValidNotAfter(long validNotAfter) {
+        this.validNotAfter = validNotAfter;
     }
 
     @Override

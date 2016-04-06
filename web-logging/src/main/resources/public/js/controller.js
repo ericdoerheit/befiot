@@ -1,5 +1,14 @@
 'use strict';
 
+var MAXIMUM_LOGS = 150;
+
+var DEFAULT_COLOR = '#66AAFF';
+var ACTIVE_COLOR = '#DDDD22';
+var SUCCESS_COLOR = '#22DD22';
+var ERROR_COLOR = '#FF6644';
+
+var HIGHLIGHT_TIME = 400;
+
 var logs = [];
 var filteredLogs = [];
 var filter = {
@@ -10,6 +19,17 @@ var filter = {
 var loggers = [];
 
 var nodes, edges, network;
+
+function highlightNode(id, highlightColor, time) {
+	console.log("Update node with id: " + id);
+	nodes.update({id: id, color: highlightColor});
+
+		function resetHightlight() {
+			nodes.update({id: id, color: DEFAULT_COLOR});
+		}
+
+		setTimeout(resetHightlight, time);
+}
 
 function updateTable() {
 	document.getElementById("log-table-body").innerHTML = "";
@@ -37,12 +57,10 @@ function updateLoggers() {
 			}
 		}
 
-		console.log(loggerOk);
-
 		if (loggerOk) {
 			document.getElementById("loggers").innerHTML += "<label><input id=\""+loggers[i]+"\" type=\"checkbox\" checked>"+loggers[i]+"</label>";
 		} else {
-			document.getElementById("loggers").innerHTML += "<label><input id=\""+loggers[i]+"\" type=\"checkbox\">"+loggers[i]+"</label>";	
+			document.getElementById("loggers").innerHTML += "<label><input id=\""+loggers[i]+"\" type=\"checkbox\">"+loggers[i]+"</label>";
 		}
 	}
 }
@@ -91,9 +109,9 @@ function initNetwork() {
 	edges = new vis.DataSet();
 
 	var container = document.getElementById("network-graph");
-	
+
 	nodes.add({id: "broker", label: "Broker", color: "#FFCC44", shape: "box", font:{size:20}});
-	
+
 	var data = {
 		nodes: nodes,
 		edges: edges
@@ -115,33 +133,48 @@ function initNetwork() {
 }
 
 function updateNetwork(log) {
-	console.log("update network");
 	var message = JSON.parse(log.message);
-	console.log(message);
-	
+
 	if(message.event == "client_started") {
-		nodes.add({id: message.data, label: "IoT Endpoint "+message.data});
+		nodes.add({id: message.data, color: DEFAULT_COLOR, label: "IoT Endpoint "+message.data});
 		edges.add({id: message.data, from: message.data, to: "broker"});
 	}
 	if(message.event == "client_stopped") {
 		nodes.remove({id: message.data});
 		edges.remove({id: message.data});
 	}
-	
-	if(message.event == "encrypt_data") {
-		network.selectNodes([message.data]);
+
+	if(message.event == "protect_message") {
+		highlightNode(message.data, ACTIVE_COLOR, HIGHLIGHT_TIME);
 	}
-	if(message.event == "decrypt_data") {
-		network.selectNodes([message.data]);
+
+	if(message.event == "protect_message_success") {
+		highlightNode(message.data, SUCCESS_COLOR, HIGHLIGHT_TIME);
 	}
-	
+
+	if(message.event == "protect_message_error") {
+		highlightNode(message.data, ERROR_COLOR, HIGHLIGHT_TIME);
+	}
+
+	if(message.event == "retrieve_message") {
+		highlightNode(message.data, ACTIVE_COLOR, HIGHLIGHT_TIME);
+	}
+
+	if(message.event == "retrieve_message_success") {
+		highlightNode(message.data, SUCCESS_COLOR, HIGHLIGHT_TIME);
+	}
+
+	if(message.event == "retrieve_message_error") {
+		highlightNode(message.data, ERROR_COLOR, HIGHLIGHT_TIME);
+	}
+
 	if(message.event == "server_started") {
 		nodes.add({id: message.data, label: "Tenant "+message.data, color: "#7BE141"});
 	}
 	if(message.event == "server_stopped") {
 		nodes.remove({id: message.data});
 	}
-	
+
 	network.fit();
 }
 
@@ -155,14 +188,13 @@ function checkForNewLogger(log) {
 	}
 
 	if (!existing) {
-		console.log(log.loggerName);
 		filter.selectedLoggers.push(log.loggerName);
 		loggers.push(log.loggerName);
 		updateLoggers();
 	}
 }
 
-function logIsOk(log) {	
+function logIsOk(log) {
 	var logLevelOk = false;
 	var i = 0;
 	for (i = 0; i < filter.selectedLevels.length; i++) {
@@ -203,6 +235,11 @@ function onNewLog(log) {
 			*/
 		}
 		logs.push(log);
+
+		if(logs.length > MAXIMUM_LOGS) {
+			logs.shift();
+		}
+
 		applyFilter();
 	}
 }
@@ -223,7 +260,7 @@ function applyFilter() {
 
 function startWebsocketConnection() {
 	if ("WebSocket" in window)
-	{  
+	{
 		var port = window.location.port
 		//var ws = new WebSocket("ws://"+window.location.hostname+(window.location.port ? ":"+location.port : "")+"/logs");
 		var ws = new WebSocket("ws://localhost:3000/logs");
@@ -233,15 +270,13 @@ function startWebsocketConnection() {
 			console.log("WebSocket connection opened.");
 		};
 
-		ws.onmessage = function (evt) 
-		{ 
-			console.log("New log received");
-			console.debug(evt.data);
+		ws.onmessage = function (evt)
+		{
 			onNewLog(JSON.parse(evt.data));
 		};
 
 		ws.onclose = function()
-		{ 
+		{
 			console.log("WebSocket connection closed.");
 		};
 	}

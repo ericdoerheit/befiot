@@ -59,12 +59,12 @@ public class Registry {
 
         boolean mandatoryPropertiesSet = true;
         for (int i = 0; i < mandatoryProperties.length; i++) {
-            mandatoryPropertiesSet = mandatoryPropertiesSet && mandatoryProperties[i] == null;
+            mandatoryPropertiesSet = mandatoryPropertiesSet && mandatoryProperties[i] != null;
         }
+
         if (!mandatoryPropertiesSet) {
             log.error("A mandatory property is not set.");
         }
-
     }
 
     public void start() {

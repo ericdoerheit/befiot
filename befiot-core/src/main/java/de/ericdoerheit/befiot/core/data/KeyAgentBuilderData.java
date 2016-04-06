@@ -6,6 +6,9 @@ package de.ericdoerheit.befiot.core.data;
  */
 public class KeyAgentBuilderData {
 
+    private long validNotBefore;
+    private long validNotAfter;
+
     private int pairingIdentifier;
     private int maximumNumberOfDecryptionKeyAgents;
     private byte[] a;
@@ -13,6 +16,22 @@ public class KeyAgentBuilderData {
     private byte[] msk;
 
     public KeyAgentBuilderData() {
+    }
+
+    public long getValidNotBefore() {
+        return validNotBefore;
+    }
+
+    public void setValidNotBefore(long validNotBefore) {
+        this.validNotBefore = validNotBefore;
+    }
+
+    public long getValidNotAfter() {
+        return validNotAfter;
+    }
+
+    public void setValidNotAfter(long validNotAfter) {
+        this.validNotAfter = validNotAfter;
     }
 
     public int getPairingIdentifier() {

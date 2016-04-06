@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -17,7 +16,7 @@ import java.util.List;
 public class Serializer {
     private static final Logger log = LoggerFactory.getLogger(Serializer.class);
 
-    // TODO: 04/02/16 Pairing Identifier
+    // TODO: 04/02/16 Pairing Identifier -> Maybe include pairing parameters in KAB, DKA and EKA
 
     private static ObjectMapper mapper = new ObjectMapper();
     
@@ -26,6 +25,8 @@ public class Serializer {
         DecryptionKeyAgentData decryptionKeyAgentData = new DecryptionKeyAgentData();
         decryptionKeyAgentData.setId(decryptionKeyAgent.getId());
         decryptionKeyAgentData.setPrivateKey(decryptionKeyAgent.getPrivateKey().toBytes());
+        decryptionKeyAgentData.setValidNotBefore(decryptionKeyAgent.getValidNotBefore());
+        decryptionKeyAgentData.setValidNotAfter(decryptionKeyAgent.getValidNotAfter());
 
         List<byte[]> publicKey = new ArrayList<byte[]>();
         for (Element e : decryptionKeyAgent.getPublicKey()) {
@@ -47,6 +48,8 @@ public class Serializer {
     /* --- Encryption Key Agent --- */
     public static EncryptionKeyAgentData encryptionKeyAgentToData(EncryptionKeyAgent encryptionKeyAgent) {
         EncryptionKeyAgentData encryptionKeyAgentData = new EncryptionKeyAgentData();
+        encryptionKeyAgentData.setValidNotBefore(encryptionKeyAgent.getValidNotBefore());
+        encryptionKeyAgentData.setValidNotAfter(encryptionKeyAgent.getValidNotAfter());
 
         List<byte[]> publicKey = new ArrayList<byte[]>();
         for (Element e : encryptionKeyAgent.getPublicKey()) {
@@ -68,9 +71,12 @@ public class Serializer {
     /* --- Key Agent Builder --- */
     public static KeyAgentBuilderData keyAgentBuilderToData(KeyAgentBuilder keyAgentBuilder) {
         KeyAgentBuilderData keyAgentBuilderData = new KeyAgentBuilderData();
+        keyAgentBuilderData.setValidNotBefore(keyAgentBuilder.getValidNotBefore());
+        keyAgentBuilderData.setValidNotAfter(keyAgentBuilder.getValidNotAfter());
         keyAgentBuilderData.setA(keyAgentBuilder.getaElem().toBytes());
         keyAgentBuilderData.setG(keyAgentBuilder.getgElem().toBytes());
-        keyAgentBuilderData.setMaximumNumberOfDecryptionKeyAgents(keyAgentBuilder.getMaximumNumberOfDecryptionKeyAgents());
+        keyAgentBuilderData.setMaximumNumberOfDecryptionKeyAgents(keyAgentBuilder
+                .getMaximumNumberOfDecryptionKeyAgents());
         keyAgentBuilderData.setMsk(keyAgentBuilder.getMskElem().toBytes());
 
         return keyAgentBuilderData;
@@ -104,7 +110,7 @@ public class Serializer {
         return null;
     }
 
-    /* --- Registy Data --- */
+    /* --- Registry Data --- */
     public static String registryDataToJsonString(RegistryData registryData) {
         try {
             return mapper.writeValueAsString(registryData);
@@ -115,13 +121,17 @@ public class Serializer {
     }
 
     /* --- Encryption Header --- */
-    public static String encryptionHeaderToJsonString(EncryptionHeader encryptionHeader) {
+    public static EncryptionHeaderData encryptionHeaderToEncryptionKeyHeaderData(EncryptionHeader encryptionHeader) {
         EncryptionHeaderData encryptionHeaderData = new EncryptionHeaderData();
         encryptionHeaderData.setC0(encryptionHeader.getC0Elem().toBytes());
         encryptionHeaderData.setC1(encryptionHeader.getC1Elem().toBytes());
 
+        return encryptionHeaderData;
+    }
+
+    public static String encryptionHeaderToJsonString(EncryptionHeader encryptionHeader) {
         try {
-            return mapper.writeValueAsString(encryptionHeaderData);
+            return mapper.writeValueAsString(encryptionHeaderToEncryptionKeyHeaderData(encryptionHeader));
         } catch (JsonProcessingException e) {
             log.error(e.getMessage());
         }

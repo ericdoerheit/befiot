@@ -23,7 +23,11 @@ public class Deserializer {
     private static ObjectMapper mapper = new ObjectMapper();
 
     /* --- Decryption Key Agent --- */
-    public static DecryptionKeyAgent decryptionKeyAgentFromDecryptionKeyAgentData(DecryptionKeyAgentData decryptionKeyAgentData) {
+    public static DecryptionKeyAgent decryptionKeyAgentFromDecryptionKeyAgentData(DecryptionKeyAgentData
+                                                                                          decryptionKeyAgentData) {
+
+        long validNotBefore = decryptionKeyAgentData.getValidNotBefore();
+        long validNotAfter = decryptionKeyAgentData.getValidNotAfter();
 
         Pairing pairing = Util.getDefaultPairing();
         Element privateKey = pairing.getG1().newElementFromBytes(decryptionKeyAgentData.getPrivateKey());
@@ -32,11 +36,22 @@ public class Deserializer {
             publicKey.add(pairing.getG1().newElementFromBytes(b));
         }
         
-        DecryptionKeyAgent decryptionKeyAgent = new DecryptionKeyAgent(pairing, decryptionKeyAgentData.getId(),
-                privateKey, publicKey);
+        DecryptionKeyAgent decryptionKeyAgent = new DecryptionKeyAgent(validNotBefore, validNotAfter, pairing,
+                decryptionKeyAgentData.getId(), privateKey, publicKey);
 
         return decryptionKeyAgent;
     }
+
+    public static DecryptionKeyAgentData jsonStringToDecryptionKeyAgentData(String jsonString) {
+        try {
+            DecryptionKeyAgentData decryptionKeyAgentData = mapper.readValue(jsonString, DecryptionKeyAgentData.class);
+            return decryptionKeyAgentData;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public static DecryptionKeyAgent jsonStringToDecryptionKeyAgent(String jsonString) {
         try {
             DecryptionKeyAgentData decryptionKeyAgentData = mapper.readValue(jsonString, DecryptionKeyAgentData.class);
@@ -48,17 +63,34 @@ public class Deserializer {
     }
 
     /* --- Encryption Key Agent --- */
-    public static EncryptionKeyAgent encryptionKeyAgentFromEncryptionKeyAgentData(EncryptionKeyAgentData encryptionKeyAgentData) {
+    public static EncryptionKeyAgent encryptionKeyAgentFromEncryptionKeyAgentData(EncryptionKeyAgentData
+                                                                                          encryptionKeyAgentData) {
+        long validNotBefore = encryptionKeyAgentData.getValidNotBefore();
+        long validNotAfter = encryptionKeyAgentData.getValidNotAfter();
+
+
         Pairing pairing = Util.getDefaultPairing();
         List<Element> publicKey = new ArrayList<Element>();
         for (byte[] b : encryptionKeyAgentData.getPublicKey()) {
             publicKey.add(pairing.getG1().newElementFromBytes(b));
         }
 
-        EncryptionKeyAgent encryptionKeyAgent = new EncryptionKeyAgent(pairing, publicKey);
+        EncryptionKeyAgent encryptionKeyAgent = new EncryptionKeyAgent(validNotBefore, validNotAfter,
+                pairing, publicKey);
 
         return encryptionKeyAgent;
     }
+
+    public static EncryptionKeyAgentData jsonStringToEncryptionKeyAgentData(String jsonString) {
+        try {
+            EncryptionKeyAgentData encryptionKeyAgentData = mapper.readValue(jsonString, EncryptionKeyAgentData.class);
+            return encryptionKeyAgentData;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public static EncryptionKeyAgent jsonStringToEncryptionKeyAgent(String jsonString) {
         try {
             EncryptionKeyAgentData encryptionKeyAgentData = mapper.readValue(jsonString, EncryptionKeyAgentData.class);
@@ -72,13 +104,16 @@ public class Deserializer {
     /* --- Key Agent Builder --- */
     public static KeyAgentBuilder keyAgentBuilderFromKeyAgentBuilderData(KeyAgentBuilderData keyAgentBuilderData) {
 
+        long validNotBefore = keyAgentBuilderData.getValidNotBefore();
+        long validNotAfter = keyAgentBuilderData.getValidNotAfter();
+
         Pairing pairing = Util.getDefaultPairing();
         Element aElem = pairing.getZr().newElementFromBytes(keyAgentBuilderData.getA());
         Element gElem = pairing.getG1().newElementFromBytes(keyAgentBuilderData.getG());
         Element mskElem = pairing.getZr().newElementFromBytes(keyAgentBuilderData.getMsk());
 
-        KeyAgentBuilder keyAgentBuilder = new KeyAgentBuilder(pairing, keyAgentBuilderData.getMaximumNumberOfDecryptionKeyAgents(),
-                aElem, gElem, mskElem);
+        KeyAgentBuilder keyAgentBuilder = new KeyAgentBuilder(validNotBefore, validNotAfter, pairing,
+                keyAgentBuilderData.getMaximumNumberOfDecryptionKeyAgents(), aElem, gElem, mskElem);
 
         return keyAgentBuilder;
     }

@@ -21,7 +21,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>de.ericdoerheit.sample.PiCamStdin</mainClass>
+                            <mainClass>de.ericdoerheit.web_logging.Application</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

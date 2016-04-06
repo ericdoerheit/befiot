@@ -1,9 +1,25 @@
 package de.ericdoerheit.befiot.simulator;
 
-import de.ericdoerheit.befiot.client.ThingClient;
+import de.ericdoerheit.befiot.client.IProtectionClient;
+import de.ericdoerheit.befiot.client.Message;
+import de.ericdoerheit.befiot.client.ProtectionClient;
 import de.ericdoerheit.befiot.core.Util;
 import de.ericdoerheit.befiot.registry.Registry;
 import de.ericdoerheit.befiot.server.TenantServer;
+import org.bouncycastle.asn1.ASN1EncodableVector;
+import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.OperatorCreationException;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,12 +27,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.List;
+import java.nio.file.StandardCopyOption;
+import java.security.*;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Properties;
 
 /**
  * Created by ericdorheit on 08/02/16.
@@ -31,23 +51,32 @@ import java.util.Properties;
 public class Simulator {
     private final static Logger log = LoggerFactory.getLogger(Simulator.class);
 
+    public static final long ONE_YEAR_MILLISECONDS = 31536000000l; // One year
+    public static final int TENANT_BASE_PORT = 8081; // One year
+    public static final int TENANT_SERVER_START_DELAY = 4000; // Needs some time to upload the new encryption key agent
+    private static final int REGISTRY_START_DELAY = 2500;
+    private static final int TEST_DELAY = 2500;
+
     private Properties clientBaseProperties = new Properties();
     private Properties serverBaseProperties = new Properties();
     private Properties registryBaseProperties = new Properties();
 
+    private String sharedKeyStoreLocation = "keystore.jks";
+    private String sharedKeyStorePassword = "befiot";
+
     private Properties currentRegistryProperties = new Properties();
 
-    private HashMap<String, HashMap<Integer, ThingClient>> tenantThingClientMap;
-    private HashMap<String, HashMap<Integer, ThingClient>> tenantThingClientThreadsMap;
+    private HashMap<String, HashMap<Integer, ProtectionClient>> tenantProtectionClientMap;
 
     private HashMap<String, Process> tenantProcessMap;
     private HashMap<String, Properties> tenantPropertiesMap;
 
-    private Registry registry;
-    private Thread registryThread;
+    private RegistryRunner registryRunner;
+
+    private int testMessageDelay;
 
     public Simulator() {
-        tenantThingClientMap = new HashMap<>();
+        tenantProtectionClientMap = new HashMap<>();
         tenantProcessMap = new HashMap<>();
         tenantPropertiesMap = new HashMap<>();
     }
@@ -57,7 +86,14 @@ public class Simulator {
      * component, e.g. database configuration, key store configuration etc. They are
      * loaded from the given properties files.
      */
-    public void start() {
+    public void start(Simulation simulation, int testMessageDelay) {
+        log.info("Start simulator");
+
+        this.testMessageDelay = testMessageDelay;
+
+        // Add bouncy castle as provider
+        Security.addProvider(new BouncyCastleProvider());
+
         try {
             clientBaseProperties.load(new FileInputStream("client.properties"));
             serverBaseProperties.load(new FileInputStream("server.properties"));
@@ -66,11 +102,28 @@ public class Simulator {
             e.printStackTrace();
         }
 
-        runAllTests();
+        switch (simulation) {
+            case SMALL:
+                runSmallTest();
+                break;
+            case STANDARD:
+                runStandardTest();
+                break;
+            case COMPLETE:
+                runCompleteTest();
+        }
     }
 
-    public void runAllTests() {
-        int[] numbersOfTenants = new int[]{1, 2, 3};
+    public void runSmallTest() {
+        runTest(1, 1);
+    }
+
+    public void runStandardTest() {
+        runTest(3, 5);
+    }
+
+    public void runCompleteTest() {
+        int[] numbersOfTenants = new int[]{1, 2, 5};
         int[] numbersOfThingsPerTenant = new int[]{1, 2, 3, 5, 20};
 
         for (int i = 0; i < numbersOfTenants.length; i++) {
@@ -80,58 +133,206 @@ public class Simulator {
         }
     }
 
+    public void generateThingCertificate(String name) throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException, OperatorCreationException, InvalidKeyException, NoSuchProviderException, SignatureException {
+        // Generate certificate (self-signed)
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
+        keyGen.initialize(256);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        X500Name issuerName = new X500Name("CN="+name+", O=, L=, ST=, C=");
+        X500Name subjectName = issuerName; // Issuer is same as subject (self signed)
+        BigInteger serial = BigInteger.valueOf(new Random().nextInt()); // Random as serial
+
+        long timestamp = System.currentTimeMillis();
+        X509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(issuerName, serial,
+                new Date(timestamp-ONE_YEAR_MILLISECONDS), new Date(timestamp+ONE_YEAR_MILLISECONDS), subjectName, keyPair.getPublic());
+
+        builder.addExtension(Extension.basicConstraints, false, new BasicConstraints(false)); // Certificate does not belong to a CA
+        KeyUsage usage = new KeyUsage(KeyUsage.digitalSignature);
+        builder.addExtension(Extension.keyUsage, false, usage);
+
+        ASN1EncodableVector purposes = new ASN1EncodableVector();
+        purposes.add(KeyPurposeId.id_kp_clientAuth);
+        purposes.add(KeyPurposeId.anyExtendedKeyUsage);
+        builder.addExtension(Extension.extendedKeyUsage, false, new DERSequence(purposes));
+
+        ContentSigner signer = new JcaContentSignerBuilder("SHA1WITHECDSA").setProvider(BouncyCastleProvider.PROVIDER_NAME).build(keyPair.getPrivate());
+        X509Certificate certificate =  new JcaX509CertificateConverter().setProvider(BouncyCastleProvider.PROVIDER_NAME).getCertificate(builder.build(signer));
+        certificate.checkValidity(new Date());
+        certificate.verify(keyPair.getPublic());
+
+        // Put certificate in shared trust store of the simulator
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        keyStore.load(new FileInputStream(sharedKeyStoreLocation), sharedKeyStorePassword.toCharArray());
+
+        // Store private key and certificate
+        keyStore.setKeyEntry(name, keyPair.getPrivate(), sharedKeyStorePassword.toCharArray(), new Certificate[]{certificate});
+
+        // Save keystore to file system
+        FileOutputStream fis = new FileOutputStream(sharedKeyStoreLocation);
+        keyStore.store(fis, sharedKeyStorePassword.toCharArray());
+
+        fis.close();
+    }
+
     private void initTest(int numberOfTenants, int numberOfThingsPerTenant) {
         // Start registry
-        Properties registryProperties = new Properties(registryBaseProperties);
-        startRegistry(registryProperties);
+        Properties registryProperties = (Properties) registryBaseProperties.clone();
+        initRegistry(registryProperties);
 
         // Start tenant servers
         for (int i = 0; i < numberOfTenants; i++) {
-            Properties serverProperties = new Properties(serverBaseProperties);
-            serverProperties.setProperty("tenant-server-port", String.valueOf(8080+i));
-            serverProperties.setProperty("maximum-numver-of-things", String.valueOf(numberOfThingsPerTenant));
+            Properties serverProperties = (Properties) serverBaseProperties.clone();
+            serverProperties.setProperty("tenant-server-port", String.valueOf(TENANT_BASE_PORT+i));
+            serverProperties.setProperty("maximum-number-of-things", String.valueOf(numberOfThingsPerTenant));
+
+            String defaultKeyStoreLocation = serverProperties.getProperty("key-store-location");
+            String defaultTrustStoreLocation = serverProperties.getProperty("trust-store-location");
+
+            String keyStoreLocation = defaultKeyStoreLocation+"_key-store_" +String.valueOf(TENANT_BASE_PORT+i);
+            String trustStoreLocation = defaultTrustStoreLocation+"_trust_store_" +String.valueOf(TENANT_BASE_PORT+i);
+
+            try {
+                Files.copy(new File(defaultKeyStoreLocation).toPath(), new File(keyStoreLocation).toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(new File(defaultTrustStoreLocation).toPath(), new File(trustStoreLocation).toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            serverProperties.setProperty("key-store-location", keyStoreLocation);
+            serverProperties.setProperty("trust-store-location", trustStoreLocation);
+
             startTenantServer(serverProperties);
+        }
+
+        File data = new File("data");
+        de.ericdoerheit.befiot.simulator.Util.deleteFolder(data);
+        try {
+            Files.createDirectory(data.toPath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+        try {
+            Thread.sleep(TEST_DELAY);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
         // Start thing clients for each tenant server
         for (int i = 0; i < numberOfTenants; i++) {
             for (int j = 0; j < numberOfThingsPerTenant; j++) {
-                Properties clientProperties = new Properties(clientBaseProperties);
-                clientProperties.setProperty("thing-id", String.valueOf(j+1));
-                clientProperties.setProperty("tenant-server-port", String.valueOf(8080+i));
+                Properties clientProperties = (Properties) clientBaseProperties.clone();
+                String thingId = String.valueOf(j+1);
+                String tenantId = "localhost:"+String.valueOf(TENANT_BASE_PORT+i);
+                String fullThingId = thingId+"@"+tenantId;
+                clientProperties.setProperty("thing-id", thingId);
+                clientProperties.setProperty("data-location", "data"+File.separator+"data_"+fullThingId);
+                clientProperties.setProperty("tenant-server-port", String.valueOf(TENANT_BASE_PORT+i));
+
+                try {
+                    generateThingCertificate(fullThingId);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (CertificateException e) {
+                    e.printStackTrace();
+                } catch (KeyStoreException e) {
+                    e.printStackTrace();
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                } catch (OperatorCreationException e) {
+                    e.printStackTrace();
+                } catch (SignatureException e) {
+                    e.printStackTrace();
+                } catch (NoSuchProviderException e) {
+                    e.printStackTrace();
+                } catch (InvalidKeyException e) {
+                    e.printStackTrace();
+                }
+
+                startProtectionClient(clientProperties);
             }
+        }
+
+
+        try {
+            Thread.sleep(TEST_DELAY);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 
     public void runTest(int numberOfTenants, int numberOfThingsPerTenant) {
+        log.info("Init test");
         initTest(numberOfTenants, numberOfThingsPerTenant);
+
+        log.info("Send all test messages");
         sendAllTestMessages();
     }
 
     public void sendAllTestMessages() {
-        for (String  thingId : tenantThingClientMap.keySet()) {
-            sendTestMessage(thingId);
+        for (String  tenantId : tenantProtectionClientMap.keySet()) {
+            log.info("Send test message from clients of tenant {}", tenantId);
+            sendTestMessages(tenantId);
         }
     }
 
-    public void sendTestMessage(String tenantId) {
-        for (Integer thingId : tenantThingClientMap.get(tenantId).keySet()) {
-            sendTestMessage(tenantId, thingId);
+    public void sendTestMessages(String tenantId) {
+        for (Integer thingId : tenantProtectionClientMap.get(tenantId).keySet()) {
+            log.info("Send test messages from client {}@{}", thingId, tenantId);
+            sendTestMessages(tenantId, thingId);
         }
     }
 
-    public void sendTestMessage(String ownTenantId, Integer thingId) {
+    public void sendTestMessages(String ownTenantId, Integer thingId) {
 
-        ThingClient senderClient = tenantThingClientMap.get(ownTenantId).get(thingId);
+        IProtectionClient senderClient = tenantProtectionClientMap.get(ownTenantId).get(thingId);
 
+        if (senderClient != null) {
+            Set<Set<String>> allReceiverSets = powerSet(completeReceiverSet());
+
+            log.info("{}", allReceiverSets);
+
+            for (Set<String> receivers : allReceiverSets) {
+                if (receivers != null && !receivers.isEmpty()) {
+                    log.info("{}", receivers);
+                    byte[] message = new byte[1024];
+                    new Random().nextBytes(message);
+                    Message protectedMessage = senderClient.protectMessage(message, System.currentTimeMillis() + ONE_YEAR_MILLISECONDS, receivers, true);
+                    waitBetweenMessages();
+                    log.info("{}", protectedMessage);
+
+                    for (String receiverClientId : receivers) {
+                        IProtectionClient receiverClient = clientFromClientId(receiverClientId);
+
+                        if (receiverClient != null) {
+                            byte[] retrievedMessage = receiverClient.retrieveMessage(protectedMessage, true);
+                            boolean successful = Arrays.equals(message, retrievedMessage);
+                            log.info("Test message successful: {} Receiver ID: {} Message: {} Retrieved Message: {}", successful, receiverClientId, Arrays.toString(message).hashCode(), Arrays.toString(retrievedMessage).hashCode());
+                        } else {
+                            log.error("Receiver client is not existing!");
+                        }
+                    }
+                    waitBetweenMessages();
+                }
+            }
+        } else {
+            log.warn("Sender client is null");
+        }
+
+        /*
         // Send messages to all tenants (do test for each tenant separately)
-        for (String tenantId : tenantThingClientMap.keySet()) {
-            HashMap<Integer, ThingClient> revceiverThingClients = tenantThingClientMap.get(tenantId);
+        for (String tenantId : tenantProtectionClientMap.keySet()) {
+            HashMap<Integer, ProtectionClient> receiverProtectionClients = tenantProtectionClientMap.get(tenantId);
 
-            int[] totalReceiverSet = new int[revceiverThingClients.keySet().size()];
+            int[] totalReceiverSet = new int[receiverProtectionClients.keySet().size()];
 
             int i = 0;
-            for (Entry<Integer, ThingClient> entry : revceiverThingClients.entrySet()) {
+            for (Entry<Integer, ProtectionClient> entry : receiverProtectionClients.entrySet()) {
                 totalReceiverSet[i] = entry.getValue().getThingId();
                 i++;
             }
@@ -144,7 +345,7 @@ public class Simulator {
                 byte[] encryptionKey = senderClient.encryptionKeyBytes(tenantId);
 
                 for (int j = 0; j < subset.length; j++) {
-                    ThingClient receiverClient = tenantThingClientMap.get(tenantId).get(subset[i]);
+                    ProtectionClient receiverClient = tenantProtectionClientMap.get(tenantId).get(subset[i]);
 
                     if (receiverClient != null) {
                         byte[] decryptionKey = receiverClient.decryptionKeyBytes(tenantId, encryptionHeader, subset);
@@ -155,26 +356,35 @@ public class Simulator {
                         }
                     }
                 }
+            }
+        }
+        */
+    }
 
-                // TODO: 12/02/16 For complement of subset -> check that things are not able to decrypt key
+    private void waitBetweenMessages() {
+        if(testMessageDelay > 0) {
+            try {
+                Thread.sleep(testMessageDelay);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
     }
 
-    public void startThingClient(Properties properties) {
-        // TODO: 14/02/16 MUST BE STARTED IN A NEW THREAD!!!
-        ThingClient thingClient = new ThingClient(properties);
+    public void startProtectionClient(Properties properties) {
+        ProtectionClient protectionClient = new ProtectionClient(properties);
         Integer thingId = Integer.valueOf(properties.getProperty("thing-id"));
-        String tenantId = properties.getProperty("tenant-id");
+        String tenantId = Util.tenantId(properties.getProperty("tenant-server-host"),
+                Integer.valueOf(properties.getProperty("tenant-server-port")));
 
-        HashMap<Integer, ThingClient> thingClientMap = tenantThingClientMap.get(tenantId);
-        if (thingClientMap == null) {
-            thingClientMap = new HashMap<Integer, ThingClient>();
-            tenantThingClientMap.put(tenantId, thingClientMap);
+        HashMap<Integer, ProtectionClient> protectionClientMap = tenantProtectionClientMap.get(tenantId);
+        if (protectionClientMap == null) {
+            protectionClientMap = new HashMap<Integer, ProtectionClient>();
+            tenantProtectionClientMap.put(tenantId, protectionClientMap);
         }
 
-        thingClientMap.put(thingId, thingClient);
-        thingClient.start();
+        protectionClientMap.put(thingId, protectionClient);
+        protectionClient.start();
     }
 
     public void startTenantServer(Properties properties) {
@@ -182,8 +392,12 @@ public class Simulator {
             Process process = executeClassInNewProcess(TenantServer.class, properties);
             String tenantId = Util.tenantId(properties.getProperty("tenant-server-host"),
                     Integer.valueOf(properties.getProperty("tenant-server-port")));
+            log.info("Start tenant with id: {}", tenantId);
             tenantProcessMap.put(tenantId, process);
             tenantPropertiesMap.put(tenantId, properties);
+
+            Thread.sleep(TENANT_SERVER_START_DELAY);
+
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
@@ -191,33 +405,52 @@ public class Simulator {
         }
     }
 
-    public void startRegistry(Properties properties) {
-        if (registry != null) {
-            registry.stop();
-        }
+    /**
+     * Initializes and starts the registry.
+     * @param properties
+     */
+    public void initRegistry(Properties properties) {
+        if (registryRunner == null) {
+            Registry registry = new Registry(properties);
+            currentRegistryProperties = properties;
+            registryRunner = new RegistryRunner(registry);
+            Thread thread = new Thread(registryRunner);
+            thread.start();
 
-        registry = new Registry(properties);
-        currentRegistryProperties = properties;
-        registry.start();
+            try {
+                Thread.sleep(REGISTRY_START_DELAY);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
+    /**
+     * Stops the registry if it is running.
+     */
     public void stopRegistry() {
-        if (registry != null) {
-            registry.stop();
+        if (registryRunner != null) {
+            registryRunner.stop();
         }
     }
 
+    /**
+     * Restart the currently running registry.
+     */
     public void restartRegistry() {
-        stopRegistry();
-        startRegistry(currentRegistryProperties);
+        initRegistry(currentRegistryProperties);
     }
 
-    /*
-    public void shutdown() {
-        for (Entry<Integer, ThingClient> entry : tenantThingClientMap.entrySet()) {
-            entry.getValue().stop();
+    /**
+     * Method used to stop the simulator. Stops all clients, tenant servers and the registry.
+     */
+    public void stop() {
+        for (Entry<String, HashMap<Integer, ProtectionClient>> entryMap : tenantProtectionClientMap.entrySet()) {
+            for (Entry<Integer, ProtectionClient> entry : entryMap.getValue().entrySet()) {
+                entry.getValue().stop();
+            }
         }
-        tenantThingClientMap.clear();
+        tenantProtectionClientMap.clear();
 
         for (Entry<String, Process> entry : tenantProcessMap.entrySet()) {
             entry.getValue().destroy();
@@ -227,12 +460,15 @@ public class Simulator {
 
         stopRegistry();
     }
-    */
 
-    public void stop() {
-        // TODO shutdown();
-    }
-
+    /**
+     * Helper method to start a class (having a main method) with the given properties in a new process.
+     * @param clazz
+     * @param properties
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     public static Process executeClassInNewProcess(Class clazz, Properties properties) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         String javaBin = javaHome +
@@ -241,28 +477,112 @@ public class Simulator {
         String classname = clazz.getCanonicalName();
         String classpath = System.getProperty("java.class.path");
 
-        Path temp = Files.createTempFile("temp", Long.toString(System.nanoTime()));
+        Path temp = Files.createTempFile("tmp", Long.toString(System.nanoTime()));
         FileOutputStream fileOutputStream = new FileOutputStream(temp.toFile());
         properties.store(fileOutputStream, "");
 
-        ProcessBuilder builder = new ProcessBuilder(javaBin, "-cp", classpath, classname, temp.toFile().getName());
+        ProcessBuilder builder = new ProcessBuilder(javaBin, "-cp", classpath, classname, temp.toFile().getAbsolutePath());
 
         Process process = builder.start();
+        fileOutputStream.close();
 
         return process;
     }
 
+
+    private class RegistryRunner implements Runnable {
+
+        private Registry registry;
+        private boolean active;
+
+        public RegistryRunner(Registry registry) {
+            this.registry = registry;
+        }
+
+        public void stop() {
+            active = false;
+        }
+
+        @Override
+        public void run() {
+            active = true;
+            registry.start();
+
+            while (active) {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            registry.stop();
+        }
+    }
+
+    public Set<String> completeReceiverSet() {
+        HashSet<String> result = new HashSet<>();
+
+        for (Entry<String, HashMap<Integer, ProtectionClient>> mapEntry : tenantProtectionClientMap.entrySet()) {
+            for (Integer thingId : mapEntry.getValue().keySet()) {
+                result.add(thingId + "@" + mapEntry.getKey());
+            }
+        }
+
+        return result;
+    }
+
+    public IProtectionClient clientFromClientId(String clientId) {
+        String[] parts = clientId.split("@");
+
+        if (parts != null && parts.length > 1) {
+            String thingId = parts[0];
+            String tenantId = parts[1];
+
+            HashMap<Integer, ProtectionClient> clients = tenantProtectionClientMap.get(tenantId);
+
+            if (clients != null) {
+                return clients.get(Integer.valueOf(thingId));
+            }
+        }
+
+        return null;
+    }
+
+    /*
+    Source: http://stackoverflow.com/questions/17891527/optimal-way-to-obtain-get-powerset-of-a-list-recursively
+     */
+    public static <T> Set<Set<T>> powerSet(Set<T> originalSet) {
+        Set<Set<T>> sets = new HashSet<Set<T>>();
+        if (originalSet.isEmpty()) {
+            sets.add(new HashSet<T>());
+            return sets;
+        }
+        List<T> list = new ArrayList<T>(originalSet);
+        T head = list.get(0);
+        Set<T> rest = new HashSet<T>(list.subList(1, list.size()));
+        for (Set<T> set : powerSet(rest)) {
+            Set<T> newSet = new HashSet<T>();
+            newSet.add(head);
+            newSet.addAll(set);
+            sets.add(newSet);
+            sets.add(set);
+        }
+        return sets;
+    }
     public static void main(String[] args) {
         Simulator simulator = new Simulator();
 
-        Runtime.getRuntime().addShutdownHook( new Thread() {
-            @Override public void run() {
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
                 log.info("Stop simulator.");
                 simulator.stop();
             }
-        } );
+        });
 
         log.info("Start simulator.");
-        simulator.start();
+        int testMessageDelay = 1000;
+        simulator.start(Simulation.STANDARD, testMessageDelay);
     }
 }

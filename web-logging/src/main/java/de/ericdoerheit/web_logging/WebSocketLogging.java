@@ -92,7 +92,7 @@ public class WebSocketLogging {
                 byte[] data = packet.getData();
                 try {
                     String logEntry = new String(data, 0, packet.getLength(), "UTF-8");
-                    log.debug(logEntry);
+                    log.info(logEntry);
                     sendLogEntry(logEntry);
                 } catch (UnsupportedEncodingException e) {
                     e.printStackTrace();

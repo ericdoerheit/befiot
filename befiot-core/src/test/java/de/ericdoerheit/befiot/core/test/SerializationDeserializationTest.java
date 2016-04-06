@@ -17,10 +17,13 @@ import static org.junit.Assert.*;
 public class SerializationDeserializationTest {
     private Logger log = LoggerFactory.getLogger(SerializationDeserializationTest.class);
 
+    private long validNotBefore = 1000;
+    private long validNotAfter = 2000;
+
     @Test
     public void testDataSerializationDeserialization() {
         Pairing pairing = Util.getDefaultPairing();
-        KeyAgentBuilder keyAgentBuilder = new KeyAgentBuilder(pairing, 5);
+        KeyAgentBuilder keyAgentBuilder = new KeyAgentBuilder(validNotBefore, validNotAfter, pairing, 5);
         EncryptionKeyAgent encryptionKeyAgent = keyAgentBuilder.getEncryptionKeyAgent();
         DecryptionKeyAgent decryptionKeyAgent = keyAgentBuilder.getDecryptionKeyAgent(2);
 
@@ -40,7 +43,8 @@ public class SerializationDeserializationTest {
     @Test
     public void testJsonSerializationDeserialization() {
         Pairing pairing = Util.getDefaultPairing();
-        KeyAgentBuilder keyAgentBuilder = new KeyAgentBuilder(pairing, 5);
+
+        KeyAgentBuilder keyAgentBuilder = new KeyAgentBuilder(validNotBefore, validNotAfter, pairing, 5);
         EncryptionKeyAgent encryptionKeyAgent = keyAgentBuilder.getEncryptionKeyAgent();
         DecryptionKeyAgent decryptionKeyAgent = keyAgentBuilder.getDecryptionKeyAgent(2);
 

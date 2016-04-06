@@ -18,9 +18,8 @@ import java.security.cert.CertificateException;
  */
 public class ServerUtil {
 
-    final static Level EVENT = Level.forName("EVENT", 550);
+    final static Level EVENT = Level.forName("EVENT", 350);
     final static org.apache.logging.log4j.Logger eventLogger = LogManager.getLogger();
-
 
     public static final String TENANT_SERVER_KEY_PREFIX = "tenant-server:";
 

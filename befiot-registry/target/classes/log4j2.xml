@@ -9,9 +9,11 @@
     </Socket>
 </Appenders>
 <Loggers>
-    <Root level="trace">
-        <AppenderRef ref="console"/>
+    <Logger name="de.ericdoerheit.befiot.client.ProtectionClient" level="info">
         <AppenderRef ref="socket"/>
+    </Logger>
+    <Root level="info">
+        <AppenderRef ref="console"/>
     </Root>
 </Loggers>
 </Configuration>

@@ -14,6 +14,9 @@ import java.util.List;
 public class KeyAgentBuilder {
     private static final Logger log = LoggerFactory.getLogger(KeyAgentBuilder.class);
 
+    private long validNotBefore;
+    private long validNotAfter;
+
     private Pairing pairing;
 
     private int maximumNumberOfDecryptionKeyAgents;
@@ -26,10 +29,14 @@ public class KeyAgentBuilder {
 
     /**
      * Initialize Key Agent Builder with random parameters. Is used to create a new broadcast encryption system.
+     * @param validNotBefore
+     * @param validNotAfter
      * @param pairing
      * @param maximumNumberOfDecryptionKeyAgents
      */
-    public KeyAgentBuilder(Pairing pairing, int maximumNumberOfDecryptionKeyAgents) {
+    public KeyAgentBuilder(long validNotBefore, long validNotAfter, Pairing pairing, int maximumNumberOfDecryptionKeyAgents) {
+        this.validNotBefore = validNotBefore;
+        this.validNotAfter = validNotAfter;
         this.pairing = pairing;
         this.maximumNumberOfDecryptionKeyAgents = maximumNumberOfDecryptionKeyAgents;
 
@@ -43,13 +50,17 @@ public class KeyAgentBuilder {
 
     /**
      * Initialize Key Agent Builder based on given parameters.
+     * @param validNotBefore
+     * @param validNotAfter
      * @param pairing
      * @param maximumNumberOfDecryptionKeyAgents
      * @param aElem
      * @param gElem
      * @param mskElem
      */
-    public KeyAgentBuilder(Pairing pairing, int maximumNumberOfDecryptionKeyAgents, Element aElem, Element gElem, Element mskElem) {
+    public KeyAgentBuilder(long validNotBefore, long validNotAfter, Pairing pairing, int maximumNumberOfDecryptionKeyAgents, Element aElem, Element gElem, Element mskElem) {
+        this.validNotBefore = validNotBefore;
+        this.validNotAfter = validNotAfter;
         this.pairing = pairing;
         this.maximumNumberOfDecryptionKeyAgents = maximumNumberOfDecryptionKeyAgents;
 
@@ -72,7 +83,7 @@ public class KeyAgentBuilder {
         Element gIElem = publicKey.get(id);
         Element dIElem = gIElem.duplicate().pow(mskElem.toBigInteger());
 
-        DecryptionKeyAgent decryptionKeyAgent = new DecryptionKeyAgent(pairing, id, dIElem, publicKey);
+        DecryptionKeyAgent decryptionKeyAgent = new DecryptionKeyAgent(validNotBefore, validNotAfter, pairing, id, dIElem, publicKey);
 
         return decryptionKeyAgent;
     }
@@ -112,7 +123,27 @@ public class KeyAgentBuilder {
 
         publicKey.add(vElem);
 
-        this.encryptionKeyAgent = new EncryptionKeyAgent(pairing, publicKey);
+        this.encryptionKeyAgent = new EncryptionKeyAgent(validNotBefore, validNotAfter, pairing, publicKey);
+    }
+
+    public boolean validate(long timestamp) {
+        return validNotBefore <= timestamp && timestamp <= validNotAfter;
+    }
+
+    public long getValidNotBefore() {
+        return validNotBefore;
+    }
+
+    public void setValidNotBefore(long validNotBefore) {
+        this.validNotBefore = validNotBefore;
+    }
+
+    public long getValidNotAfter() {
+        return validNotAfter;
+    }
+
+    public void setValidNotAfter(long validNotAfter) {
+        this.validNotAfter = validNotAfter;
     }
 
     public int getMaximumNumberOfDecryptionKeyAgents() {

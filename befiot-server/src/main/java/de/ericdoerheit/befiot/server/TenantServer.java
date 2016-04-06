@@ -1,29 +1,27 @@
 package de.ericdoerheit.befiot.server;
 
-import de.ericdoerheit.befiot.core.*;
-import de.ericdoerheit.befiot.core.data.RegistryData;
-import de.ericdoerheit.befiot.core.data.TenantData;
+import de.ericdoerheit.befiot.core.Deserializer;
+import de.ericdoerheit.befiot.core.KeyAgentBuilder;
+import de.ericdoerheit.befiot.core.Serializer;
+import de.ericdoerheit.befiot.core.Util;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
-
 import spark.Spark;
 
 import javax.net.ssl.SSLContext;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.security.KeyManagementException;
 import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
-import java.util.*;
-import java.util.zip.Inflater;
+import java.util.Properties;
+import java.util.Timer;
+import java.util.TimerTask;
 
-import static de.ericdoerheit.befiot.server.ServerUtil.*;
+import static de.ericdoerheit.befiot.server.ServerUtil.TENANT_SERVER_KEY_PREFIX;
+import static de.ericdoerheit.befiot.server.ServerUtil.logEvent;
 
 /**
  * Created by ericdorheit on 05/02/16.
@@ -61,6 +59,7 @@ public class TenantServer {
 
     private KeyAgentBuilder keyAgentBuilder;
     private Integer maximumNumberOfThings;
+    private Long keyAgentBuilderLifetime;
 
     private TimerTask uploadTask;
     Timer timer;
@@ -87,14 +86,17 @@ public class TenantServer {
         trustStorePassword = properties.getProperty("trust-store-password");
 
         maximumNumberOfThings = Integer.valueOf(properties.getProperty("maximum-number-of-things"));
+        keyAgentBuilderLifetime = Long.valueOf(properties.getProperty("key-agent-builder-lifetime"));
 
         Object[] mandatoryProperties = new Object[]{tenantServerHost, tenantServerPort, tenantRegistryHost, tenantRegistryPort,
-                keyStoreLocation, keyStorePassword, keyPassword, trustStoreLocation, trustStorePassword, maximumNumberOfThings};
+                keyStoreLocation, keyStorePassword, keyPassword, trustStoreLocation, trustStorePassword, maximumNumberOfThings,
+                keyAgentBuilderLifetime};
 
         boolean mandatoryPropertiesSet = true;
         for (int i = 0; i < mandatoryProperties.length; i++) {
-            mandatoryPropertiesSet = mandatoryPropertiesSet && mandatoryProperties[i] == null;
+            mandatoryPropertiesSet = mandatoryPropertiesSet && mandatoryProperties[i] != null;
         }
+
         if (!mandatoryPropertiesSet) {
             log.error("A mandatory property is not set.");
         }
@@ -107,10 +109,18 @@ public class TenantServer {
     public void start() {
         logEvent("{\"event\": \"server_started\", \"data\":\""+Util.tenantId(tenantServerHost, tenantServerPort)+"\"}");
 
+        log.info("Start tenant");
+
         SSLContext sslContext = null;
         try {
-            sslContext = ServerUtil.getSSLContext(new FileInputStream(keyStoreLocation),
-                    new FileInputStream(trustStoreLocation), keyStorePassword, keyPassword, trustStorePassword);
+            FileInputStream fisKeyStore = new FileInputStream(keyStoreLocation);
+            FileInputStream fisTrustStore = new FileInputStream(trustStoreLocation);
+            sslContext = ServerUtil.getSSLContext(fisKeyStore,
+                    fisTrustStore, keyStorePassword, keyPassword, trustStorePassword);
+
+            fisKeyStore.close();
+            fisTrustStore.close();
+
         } catch (KeyStoreException e) {
             e.printStackTrace();
         } catch (Exception e) {
@@ -140,7 +150,7 @@ public class TenantServer {
 
             Spark.port(tenantServerPort);
             Spark.secure(keyStoreLocation, keyPassword, trustStoreLocation, trustStorePassword);
-            Spark.threadPool(8);
+            Spark.threadPool(24);
 
             Spark.get("/decryption-key-agent/:id", (req, res) -> {
                 log.debug("Request from {} to {}", req.host(), req.port(), req.url());
@@ -149,6 +159,10 @@ public class TenantServer {
 
                 String decryptionKeyAgentString = Serializer.decryptionKeyAgentToJsonString(keyAgentBuilder.getDecryptionKeyAgent(Integer.valueOf(thingId)));
                 return decryptionKeyAgentString;
+            });
+
+            Spark.get("/status", (req, res) -> {
+                return "running";
             });
 
             Spark.awaitInitialization();
@@ -167,10 +181,15 @@ public class TenantServer {
 
         if (keyAgentBuilderJsonString != null) {
             keyAgentBuilder = Deserializer.jsonStringToKeyAgentBuilder(keyAgentBuilderJsonString);
+
+            // TODO: 16/03/16 Check if KAB fits to server properties (maximum number of things etc.)
+            
             return true;
         } else {
             // Create new random Key Agent Builder
-            keyAgentBuilder = new KeyAgentBuilder(Util.getDefaultPairing(), maximumNumberOfThings);
+            long timestamp = System.currentTimeMillis();
+            keyAgentBuilder = new KeyAgentBuilder(timestamp, timestamp+keyAgentBuilderLifetime,
+                    Util.getDefaultPairing(), maximumNumberOfThings);
 
             // Serialize and store new Key Agent Builder
             keyAgentBuilderJsonString = Serializer.keyAgentBuilderToJsonString(keyAgentBuilder);
