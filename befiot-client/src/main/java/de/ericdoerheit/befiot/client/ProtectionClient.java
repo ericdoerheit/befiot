@@ -1,5 +1,6 @@
 package de.ericdoerheit.befiot.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import de.ericdoerheit.befiot.core.*;
 import de.ericdoerheit.befiot.core.data.EncryptionHeaderData;
 import de.ericdoerheit.befiot.core.data.EncryptionKeyAgentData;
@@ -423,6 +424,11 @@ public class ProtectionClient implements IProtectionClient {
             return null;
         }
 
+        int encryptionDataSize = 0;
+        int numberReceivers = 0;
+        int numberMaxReceivers = decryptionKeyAgent.getPublicKey().size() / 2 - 1;
+        int tenants = 0;
+
         long timestamp = System.currentTimeMillis();
 
         int hash = receivers.hashCode();
@@ -483,6 +489,10 @@ public class ProtectionClient implements IProtectionClient {
                     ids[i] = Integer.valueOf(id);
                     i++;
                 }
+
+                tenants++;
+                numberReceivers += ids.length;
+                encryptionDataSize += Serializer.encryptionKeyAgentToJsonString(encryptionKeyAgent).getBytes().length;
 
                 if (encryptionKeyAgent != null) {
                     broadcastEncryptionIds.put(tenantId, ids);
@@ -546,6 +556,15 @@ public class ProtectionClient implements IProtectionClient {
         }
 
         logEvent("{\"event\": \"protect_message_success\", \"data\":\""+getFullThingId()+"\"}");
+
+        try {
+            String protectedMessageAsJsonString = getObjectMapper().writeValueAsString(protectedMessage);
+            logMeasurement(protectedMessageAsJsonString.length(), encryptionDataSize, null, numberReceivers,
+                    numberMaxReceivers, tenants);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+
         return protectedMessage;
     }
 
@@ -579,6 +598,16 @@ public class ProtectionClient implements IProtectionClient {
     public byte[] retrieveMessage(Message protectedMessage, boolean sessionKeyIsNew) {
         logEvent("{\"event\": \"retrieve_message\", \"data\":\""+getFullThingId()+"\"}");
         long timestamp = System.currentTimeMillis();
+
+        int decryptionDataSize = Serializer.decryptionKeyAgentToJsonString(decryptionKeyAgent).getBytes().length;
+
+        int numberReceivers = 0;
+        for(Map.Entry<String, int[]> entry : protectedMessage.getBroadcastEncryptionIds().entrySet()) {
+            numberReceivers += entry.getValue().length;
+        }
+
+        int numberMaxReceivers = decryptionKeyAgent.getPublicKey().size() / 2 - 1;
+        int tenants = protectedMessage.getBroadcastEncryptedSessionKeys().size();
 
         if(protectedMessage != null && protectedMessage.validate(timestamp)) {
             SessionKey sessionKey = decryptionSessionKeys.get(protectedMessage.getSessionId());
@@ -645,6 +674,13 @@ public class ProtectionClient implements IProtectionClient {
                     // Decrypt
                     log.debug("Decrypt message");
                     logEvent("{\"event\": \"retrieve_message_success\", \"data\":\""+getFullThingId()+"\"}");
+                    try {
+                        String protectedMessageAsJsonString = getObjectMapper().writeValueAsString(protectedMessage);
+                        logMeasurement(protectedMessageAsJsonString.length(), null, decryptionDataSize, numberReceivers,
+                                numberMaxReceivers, tenants);
+                    } catch (JsonProcessingException e) {
+                        e.printStackTrace();
+                    }
                     return cryptographyUtil.aesDecrypt(sessionKey.getSessionKey(), protectedMessage.getIv(), protectedMessage.getEncryptedMessage(), false);
                 } else {
                     log.warn("session key is null or MAC is not valid");
@@ -659,6 +695,7 @@ public class ProtectionClient implements IProtectionClient {
         // Message invalid
         log.warn("Message is invalid");
         logEvent("{\"event\": \"retrieve_message_error\", \"data\":\""+getFullThingId()+"\"}");
+
         return null;
     }
 

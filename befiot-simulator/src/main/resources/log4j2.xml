@@ -7,12 +7,17 @@
     <Socket name="socket" host="localhost" port="3001" protocol="UDP">
         <JSONLayout />
     </Socket>
+    <File name="file" fileName="logs/client.log">
+        <ThresholdFilter level="measurement" onMatch="ACCEPT" onMismatch="DENY"/>
+        <PatternLayout pattern="%msg%n"/>
+    </File>
 </Appenders>
 <Loggers>
 
     <Logger name="de.ericdoerheit.befiot.client.ClientUtil" level="event">
         <AppenderRef ref="socket"/>
         <AppenderRef ref="console"/>
+        <AppenderRef ref="file"/>
     </Logger>
     <Logger name="de.ericdoerheit.befiot.client.ProtectionClient" level="info">
         <AppenderRef ref="socket"/>
@@ -30,7 +35,7 @@
         <AppenderRef ref="socket"/>
         <AppenderRef ref="console"/>
     </Logger>
-    <Root level="info">
+    <Root level="warn">
         <AppenderRef ref="console"/>
     </Root>
 </Loggers>

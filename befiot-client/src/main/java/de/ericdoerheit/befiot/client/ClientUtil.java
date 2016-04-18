@@ -1,8 +1,6 @@
 package de.ericdoerheit.befiot.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.ericdoerheit.befiot.core.DecryptionKeyAgent;
-import de.ericdoerheit.befiot.core.EncryptionKeyAgent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
@@ -25,7 +23,8 @@ public class ClientUtil {
     private final static Logger log = LoggerFactory.getLogger(ClientUtil.class);
 
     final static Level EVENT = Level.forName("EVENT", 350);
-    final static org.apache.logging.log4j.Logger eventLogger = LogManager.getLogger();
+    final static Level MEASUREMENT = Level.forName("MEASUREMENT", 50);
+    final static org.apache.logging.log4j.Logger logger = LogManager.getLogger();
 
     public static final String DECRYPTION_KEY_AGENT_FILE_NAME_REGEX = "decryption-key-agent.json";
     public static final String ENCRYPTION_KEY_AGENT_FILE_NAME_REGEX = "(encryption-key-agent_).{1,}(.json)";
@@ -121,7 +120,20 @@ public class ClientUtil {
     }
 
     protected static void logEvent(String message) {
-        eventLogger.log(EVENT, message);
+        logger.log(EVENT, message);
+    }
+
+    protected static void logMeasurement(Integer messageSize, Integer encryptionDataSize, Integer decryptionDataSize,
+                                         Integer numberReceivers, Integer numberMaxReceivers, Integer tenants) {
+        String message = "{"
+                + "\"messageSize\": " + messageSize + ","
+                + "\"encryptionDataSize\": " + encryptionDataSize + ","
+                + "\"decryptionDataSize\": " + decryptionDataSize + ","
+                + "\"numberReceivers\": " + numberReceivers + ","
+                + "\"numberMaxReceivers\": " + numberMaxReceivers + ","
+                + "\"tenants\": " + tenants
+                + "}";
+        logger.log(MEASUREMENT, message);
     }
 
     public static String byteMapToString(Map<String, byte[]> map) {

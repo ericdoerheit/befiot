@@ -22,6 +22,9 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,6 +41,9 @@ import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.Map.Entry;
 
+import static de.ericdoerheit.befiot.registry.RegistryUtil.REGISTRY_KEY_PREFIX;
+import static de.ericdoerheit.befiot.registry.RegistryUtil.TENANT_LIST_KEY;
+
 /**
  * Created by ericdorheit on 08/02/16.
  */
@@ -53,7 +59,7 @@ public class Simulator {
 
     public static final long ONE_YEAR_MILLISECONDS = 31536000000l; // One year
     public static final int TENANT_BASE_PORT = 8081; // One year
-    public static final int TENANT_SERVER_START_DELAY = 4000; // Needs some time to upload the new encryption key agent
+    public static final int TENANT_SERVER_START_DELAY = 2500; // Needs some time to upload the new encryption key agent
     private static final int REGISTRY_START_DELAY = 2500;
     private static final int TEST_DELAY = 2500;
 
@@ -74,6 +80,8 @@ public class Simulator {
     private RegistryRunner registryRunner;
 
     private int testMessageDelay;
+
+    private JedisPool jedisPool;
 
     public Simulator() {
         tenantProtectionClientMap = new HashMap<>();
@@ -102,6 +110,15 @@ public class Simulator {
             e.printStackTrace();
         }
 
+        String redisHost = registryBaseProperties.getProperty("redis-host");
+        Integer redisPort = Integer.valueOf(registryBaseProperties.getProperty("redis-port"));
+        String redisUsername = registryBaseProperties.getProperty("redis-username");
+        String redisPassword = registryBaseProperties.getProperty("redis-password");
+
+        jedisPool = new JedisPool(new JedisPoolConfig(), redisHost, redisPort);
+
+        int[] numbersOfTenants;
+        int[] numbersOfThingsPerTenant;
         switch (simulation) {
             case SMALL:
                 runSmallTest();
@@ -111,6 +128,26 @@ public class Simulator {
                 break;
             case COMPLETE:
                 runCompleteTest();
+                break;
+            case MEASUREMENT:
+                numbersOfTenants = new int[]{1, 2, 3, 4, 5};
+                numbersOfThingsPerTenant = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+                runMeasurements(numbersOfTenants, numbersOfThingsPerTenant);
+                break;
+            case R_MEASUREMENT:
+                numbersOfTenants = new int[]{1, 2, 3, 4, 5};
+                numbersOfThingsPerTenant = new int[]{20};
+                runMeasurements(numbersOfTenants, numbersOfThingsPerTenant);
+                break;
+            case T_MEASUREMENT:
+                numbersOfTenants = new int[]{1, 2, 4, 8, 16};
+                numbersOfThingsPerTenant = new int[]{1};
+                runMeasurements(numbersOfTenants, numbersOfThingsPerTenant);
+                break;
+            case R_MAX_MEASUREMENT:
+                numbersOfTenants = new int[]{1};
+                numbersOfThingsPerTenant = new int[]{1, 2, 4, 8, 16};
+                runMeasurements(numbersOfTenants, numbersOfThingsPerTenant);
         }
     }
 
@@ -129,6 +166,39 @@ public class Simulator {
         for (int i = 0; i < numbersOfTenants.length; i++) {
             for (int j = 0; j < numbersOfThingsPerTenant.length; j++) {
                 runTest(numbersOfTenants[i], numbersOfThingsPerTenant[j]);
+            }
+        }
+    }
+
+    public void runMeasurements(int[] numbersOfTenants, int[] numbersOfThingsPerTenant) {
+        for (int i = 0; i < numbersOfTenants.length; i++) {
+            for (int j = 0; j < numbersOfThingsPerTenant.length; j++) {
+
+                initTest(numbersOfTenants[i], numbersOfThingsPerTenant[j]);
+                String tenantId = tenantProtectionClientMap.keySet().iterator().next();
+                Integer thingId = 1;
+
+                IProtectionClient senderClient = tenantProtectionClientMap.get(tenantId).get(thingId);
+                Set<String> receivers = completeReceiverSet();
+                int max = receivers.size();
+
+                for (int k = 0; k < max; k++) {
+                    sendSingleMessage(senderClient, receivers);
+                    String s = receivers.iterator().next();
+                    receivers.remove(s);
+                }
+
+                for (Entry<String, Process> entry : tenantProcessMap.entrySet()) {
+                    entry.getValue().destroy();
+                }
+
+                stop();
+
+                try {
+                    Thread.sleep(TEST_DELAY);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -177,6 +247,12 @@ public class Simulator {
     }
 
     private void initTest(int numberOfTenants, int numberOfThingsPerTenant) {
+
+        // Flush Redis DB
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.flushDB();
+        }
+
         // Start registry
         Properties registryProperties = (Properties) registryBaseProperties.clone();
         initRegistry(registryProperties);
@@ -298,27 +374,7 @@ public class Simulator {
             log.info("{}", allReceiverSets);
 
             for (Set<String> receivers : allReceiverSets) {
-                if (receivers != null && !receivers.isEmpty()) {
-                    log.info("{}", receivers);
-                    byte[] message = new byte[1024];
-                    new Random().nextBytes(message);
-                    Message protectedMessage = senderClient.protectMessage(message, System.currentTimeMillis() + ONE_YEAR_MILLISECONDS, receivers, true);
-                    waitBetweenMessages();
-                    log.info("{}", protectedMessage);
-
-                    for (String receiverClientId : receivers) {
-                        IProtectionClient receiverClient = clientFromClientId(receiverClientId);
-
-                        if (receiverClient != null) {
-                            byte[] retrievedMessage = receiverClient.retrieveMessage(protectedMessage, true);
-                            boolean successful = Arrays.equals(message, retrievedMessage);
-                            log.info("Test message successful: {} Receiver ID: {} Message: {} Retrieved Message: {}", successful, receiverClientId, Arrays.toString(message).hashCode(), Arrays.toString(retrievedMessage).hashCode());
-                        } else {
-                            log.error("Receiver client is not existing!");
-                        }
-                    }
-                    waitBetweenMessages();
-                }
+                sendSingleMessage(senderClient, receivers);
             }
         } else {
             log.warn("Sender client is null");
@@ -359,6 +415,30 @@ public class Simulator {
             }
         }
         */
+    }
+
+    private void sendSingleMessage(IProtectionClient senderClient, Set<String> receivers) {
+        if (receivers != null && !receivers.isEmpty()) {
+            log.info("{}", receivers);
+            byte[] message = new byte[1024];
+            new Random().nextBytes(message);
+            Message protectedMessage = senderClient.protectMessage(message, System.currentTimeMillis() + ONE_YEAR_MILLISECONDS, receivers, true);
+            waitBetweenMessages();
+            log.info("{}", protectedMessage);
+
+            for (String receiverClientId : receivers) {
+                IProtectionClient receiverClient = clientFromClientId(receiverClientId);
+
+                if (receiverClient != null) {
+                    byte[] retrievedMessage = receiverClient.retrieveMessage(protectedMessage, true);
+                    boolean successful = Arrays.equals(message, retrievedMessage);
+                    log.info("Test message successful: {} Receiver ID: {} Message: {} Retrieved Message: {}", successful, receiverClientId, Arrays.toString(message).hashCode(), Arrays.toString(retrievedMessage).hashCode());
+                } else {
+                    log.error("Receiver client is not existing!");
+                }
+            }
+            waitBetweenMessages();
+        }
     }
 
     private void waitBetweenMessages() {
@@ -458,7 +538,7 @@ public class Simulator {
         tenantProcessMap.clear();
         tenantPropertiesMap.clear();
 
-        stopRegistry();
+        // stopRegistry();
     }
 
     /**
@@ -582,7 +662,7 @@ public class Simulator {
         });
 
         log.info("Start simulator.");
-        int testMessageDelay = 1000;
-        simulator.start(Simulation.STANDARD, testMessageDelay);
+        int testMessageDelay = 0;
+        simulator.start(Simulation.R_MEASUREMENT, testMessageDelay);
     }
 }
