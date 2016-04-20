@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+<Appenders>
+    <Console name="console">
+        <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+    </Console>
+    <Socket name="socket" host="localhost" port="3001" protocol="UDP">
+        <JSONLayout />
+    </Socket>
+    <File name="file" fileName="logs/client.log">
+        <ThresholdFilter level="measurement" onMatch="ACCEPT" onMismatch="DENY"/>
+        <PatternLayout pattern="%msg%n"/>
+    </File>
+</Appenders>
+<Loggers>
+
+    <Logger name="de.ericdoerheit.efiot.client.ClientUtil" level="event">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+        <AppenderRef ref="file"/>
+    </Logger>
+    <Logger name="de.ericdoerheit.efiot.client.ProtectionClient" level="info">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Logger name="de.ericdoerheit.efiot.registry.Registry" level="info">
+        <AppenderRef ref="socket"/>
+        <AppenderRef ref="console"/>
+    </Logger>
+    <Root level="warn">
+        <AppenderRef ref="console"/>
+    </Root>
+</Loggers>
+</Configuration>

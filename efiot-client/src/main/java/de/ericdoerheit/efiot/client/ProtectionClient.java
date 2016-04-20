@@ -9,6 +9,7 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
+import javax.net.ssl.*;
 import java.io.*;
 import java.security.*;
 import java.security.cert.*;
@@ -36,6 +37,7 @@ public class ProtectionClient implements IProtectionClient {
     private String receiverTrustStoreLocation;
     private String receiverTrustStorePassword;
 
+    // Not used yet, will be used for root certificates to verify thing certificates
     private String trustStoreLocation;
     private String trustStorePassword;
 
@@ -70,14 +72,10 @@ public class ProtectionClient implements IProtectionClient {
         receiverTrustStoreLocation = properties.getProperty("receiver-trust-store-location");
         receiverTrustStorePassword = properties.getProperty("receiver-trust-store-password");
 
-        trustStoreLocation = properties.getProperty("trust-store-location");
-        trustStorePassword = properties.getProperty("trust-store-password");
-
         dataLocation = properties.getProperty("data-location");
 
         Object[] mandatoryProperties = new Object[]{thingId, registryUrl, keyStoreLocation, keyStorePassword,
-                keyPassword, receiverTrustStoreLocation, receiverTrustStorePassword, trustStoreLocation,
-                trustStorePassword, dataLocation};
+                keyPassword, receiverTrustStoreLocation, receiverTrustStorePassword, dataLocation};
 
         boolean mandatoryPropertiesSet = true;
         for (int i = 0; i < mandatoryProperties.length; i++) {
@@ -93,7 +91,7 @@ public class ProtectionClient implements IProtectionClient {
         logEvent("{\"event\": \"client_started\", \"data\":\""+thingId+"\"}");
         log.info("Start client...");
 
-        httpClient = new OkHttpClient();
+        httpClient = ClientUtil.getDefaultHttpClient();
 
         try {
             KeyStore keystore = KeyStore.getInstance("JKS");
@@ -152,15 +150,14 @@ public class ProtectionClient implements IProtectionClient {
             }
         }
 
+
         // Upload certificate to registry
-        String uploadCertificateUrl = registryUrl + "/certificates/" + thingId;
-
-        String encodedCertificate = Base64.getEncoder().encodeToString(thingPrivateKey.getEncoded());
-        RequestBody uploadCertificateBody = RequestBody.create(MediaType.parse("text/plain; charset=utf-8"),
-                encodedCertificate);
-        Request uploadCertificateRequest = new Request.Builder().url(uploadCertificateUrl).post(uploadCertificateBody).build();
-
+        String uploadCertificateUrl = registryUrl + "/" + thingId;
         try {
+            String encodedCertificate = Base64.getEncoder().encodeToString(thingCertificate.getEncoded());
+            RequestBody uploadCertificateBody = RequestBody.create(MediaType.parse("text/plain; charset=utf-8"),
+                    encodedCertificate);
+            Request uploadCertificateRequest = new Request.Builder().url(uploadCertificateUrl).post(uploadCertificateBody).build();
             log.debug("Request to {}.", uploadCertificateUrl);
             Response response = httpClient.newCall(uploadCertificateRequest).execute();
             String body = response.body().string();
@@ -175,11 +172,13 @@ public class ProtectionClient implements IProtectionClient {
 
         } catch (IOException e) {
             log.error("Could not receive tenant data from {}. {}", uploadCertificateUrl, e.getMessage());
+        } catch (CertificateEncodingException e) {
+            log.error("Could not encode certificate.");
         }
     }
 
     private Certificate downloadCertificateFromRegistry(String receiverId) throws KeyStoreException {
-        String url = registryUrl+"/"+receiverId;
+        String url = registryUrl + "/" + receiverId;
         Request request = new Request.Builder().url(url).build();
 
         try {
@@ -225,9 +224,8 @@ public class ProtectionClient implements IProtectionClient {
             return null;
         }
 
-        // TODO specify measurement entries
         int encryptionDataSize = 0;
-        int numberReceivers = 0;
+        int numberReceivers = receivers.size();
         int numberMaxReceivers = 0;
         int tenants = 0;
 
@@ -281,6 +279,8 @@ public class ProtectionClient implements IProtectionClient {
                     }
 
                     if(certificate != null) {
+                        encryptionDataSize += certificate.getEncoded().length;
+
                         try {
                             byte[] ecdhKey = cryptographyUtil.ecdhKeyAgreement(thingPrivateKey,
                                     certificate.getPublicKey());
@@ -301,6 +301,8 @@ public class ProtectionClient implements IProtectionClient {
                         log.warn("No certificate for receiver with id: {}", receiver);
                     }
                 } catch (KeyStoreException e) {
+                    e.printStackTrace();
+                } catch (CertificateEncodingException e) {
                     e.printStackTrace();
                 }
             }
@@ -361,7 +363,6 @@ public class ProtectionClient implements IProtectionClient {
         logEvent("{\"event\": \"retrieve_message\", \"data\":\""+thingId+"\"}");
         long timestamp = System.currentTimeMillis();
 
-        // TODO specify measurement entries
         int decryptionDataSize = 0;
         int numberReceivers = 0;
         int numberMaxReceivers = 0;
@@ -392,11 +393,13 @@ public class ProtectionClient implements IProtectionClient {
                     e.printStackTrace();
                 }
 
+                numberReceivers = protectedMessage.getEncryptedSessionKeys().keySet().size();
                 byte[] encryptedSessionKey = protectedMessage.getEncryptedSessionKeys().get(CryptographyUtil.secureHash(thingId));
 
                 if(encryptedSessionKey != null && senderCertificate != null) {
                     if(thingPrivateKey != null) {
                         try {
+                            decryptionDataSize = thingPrivateKey.getEncoded().length;
                             byte[] ecdhKey = cryptographyUtil.ecdhKeyAgreement(thingPrivateKey,
                                     senderCertificate.getPublicKey());
 

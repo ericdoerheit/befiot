@@ -266,8 +266,8 @@ public class Simulator {
             String defaultKeyStoreLocation = serverProperties.getProperty("key-store-location");
             String defaultTrustStoreLocation = serverProperties.getProperty("trust-store-location");
 
-            String keyStoreLocation = defaultKeyStoreLocation+"_key-store_" +String.valueOf(TENANT_BASE_PORT+i);
-            String trustStoreLocation = defaultTrustStoreLocation+"_trust_store_" +String.valueOf(TENANT_BASE_PORT+i);
+            String keyStoreLocation = "key-store_" +String.valueOf(TENANT_BASE_PORT+i)+"_"+defaultKeyStoreLocation;
+            String trustStoreLocation = "trust_store_" +String.valueOf(TENANT_BASE_PORT+i)+"_"+defaultTrustStoreLocation;
 
             try {
                 Files.copy(new File(defaultKeyStoreLocation).toPath(), new File(keyStoreLocation).toPath(),

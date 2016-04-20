@@ -36,6 +36,7 @@ public class Registry {
     private String trustStorePassword;
 
     private JedisPool jedisPool;
+    private String baseUrl;
 
     public Registry(Properties properties) {
         tenantRegistryHost = properties.getProperty("tenant-registry-host");
@@ -46,6 +47,7 @@ public class Registry {
         redisUsername = properties.getProperty("redis-username");
         redisPassword = properties.getProperty("redis-password");
 
+        baseUrl = properties.getProperty("base-url", "/encryption-key-agent");
 
         keyStoreLocation = properties.getProperty("key-store-location");
         keyStorePassword = properties.getProperty("key-store-password");
@@ -89,7 +91,7 @@ public class Registry {
         });
 
 
-        Spark.post("/encryption-key-agent/:tenantId", (req, res) -> {
+        Spark.post(baseUrl + "/:tenantId", (req, res) -> {
             log.debug("Request from {} to {}", req.host(), req.port(), req.url());
             try (Jedis jedis = jedisPool.getResource()) {
                 String tenantId = req.params(":tenantId");
@@ -109,7 +111,7 @@ public class Registry {
             }
         });
 
-        Spark.get("/encryption-key-agent/:tenantId", (req, res) -> {
+        Spark.get(baseUrl + "/:tenantId", (req, res) -> {
             log.debug("Request from {} to {}", req.host(), req.port(), req.url());
             try (Jedis jedis = jedisPool.getResource()) {
                 String encryptionKeyAgentJson = jedis.get(REGISTRY_KEY_PREFIX + tenantKey(req.params(":tenantId")));
